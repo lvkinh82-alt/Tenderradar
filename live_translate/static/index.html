@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Muối Từ · Phiên Dịch AI</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/static/favicon-48.png" type="image/png">
@@ -11,220 +11,328 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <style>
   :root {
-    --bg: #f6f7fb; --panel: #ffffff; --ink: #1b1f2a; --muted: #6b7385;
-    --line: #e3e6ee; --accent: #047857; --accent-ink: #fff; --a: #2563eb; --b: #c2410c;
-    --interim: #9aa1b2; --danger: #d92d20; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.05);
+    --bg: #f5f3ee; --surface: #ffffff; --ink: #1d2320; --muted: #5f6b66; --line: #e4e0d6;
+    --brand: #047857; --brand-ink: #ffffff; --brand-soft: #e3f3ec;
+    --a: #1d4ed8; --a-soft: #e6edfd; --b: #b45309; --b-soft: #fbefe1;
+    --danger: #b42318; --danger-soft: #fdeceb; --rec: #c62828;
+    --edge: #b9b2a3; --edge-w: 2px;
+    --shadow: 0 2px 4px rgba(30,35,30,.08), 0 10px 26px rgba(30,35,30,.10);
+    --radius: 20px;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#0f1218; --panel:#171b23; --ink:#e8ebf2; --muted:#9097a8; --line:#272d39;
-      --accent:#34d399; --accent-ink:#052e24; --a:#60a5fa; --b:#fb923c; --interim:#6b7385; --shadow:none; }
+    :root { --bg:#111513; --surface:#1a201d; --ink:#eef2ef; --muted:#a3ada8; --line:#2b332f;
+      --brand:#34d399; --brand-ink:#05261b; --brand-soft:#173328;
+      --a:#93b4ff; --a-soft:#1d2840; --b:#fbbf74; --b-soft:#3a2a15;
+      --danger:#ff8a80; --danger-soft:#3a1d1b; --rec:#ef5350; --edge:#4a554f; --shadow:0 6px 20px rgba(0,0,0,.45); }
   }
-  * { box-sizing: border-box; }
-  body { margin:0; font:15px/1.55 system-ui,-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
-    background:var(--bg); color:var(--ink); }
-  header { display:flex; align-items:center; gap:12px; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; }
-  header h1 { font-size:18px; margin:0; letter-spacing:.2px; }
-  header h1 span { color:var(--accent); }
-  .status { margin-left:auto; font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px; }
-  .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); }
-  .dot.live { background:var(--danger); animation:pulse 1.2s infinite; }
-  .dot.ok { background:var(--accent); }
-  @keyframes pulse { 50% { opacity:.3; } }
-  main { max-width:1100px; margin:0 auto; padding:16px; display:grid; gap:16px; grid-template-columns: 300px 1fr; }
-  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
-  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; box-shadow:var(--shadow); }
-  .panel h2 { font-size:13px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:0 0 10px; }
-  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
-  select, textarea, input[type=text] { width:100%; padding:9px 10px; border-radius:9px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font:inherit; }
-  textarea { resize:vertical; min-height:70px; }
-  .row { display:flex; gap:8px; align-items:end; }
-  .row > div { flex:1; min-width:0; }
-  button { font:inherit; border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:9px; padding:8px 12px; cursor:pointer; }
-  button:hover { border-color:var(--accent); }
-  button.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
-  button.big { width:100%; padding:14px; font-size:16px; font-weight:600; border-radius:12px; margin-top:12px; }
-  button.rec { background:var(--danger); border-color:var(--danger); color:#fff; }
-  .seg { display:flex; gap:4px; background:var(--bg); padding:4px; border-radius:10px; border:1px solid var(--line); }
-  .seg button { flex:1; border:none; background:transparent; padding:7px 4px; font-size:13px; }
-  .seg button.on { background:var(--panel); box-shadow:var(--shadow); color:var(--accent); font-weight:600; }
-  .check { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:14px; color:var(--ink); }
-  .check input { width:16px; height:16px; }
-  .talk { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
-  .talk button { padding:16px 8px; font-weight:600; border-radius:12px; }
-  .talk .ta { border-color:var(--a); color:var(--a); }
-  .talk .tb { border-color:var(--b); color:var(--b); }
-  .talk button.rec { color:#fff; }
-  #feed { display:flex; flex-direction:column; gap:10px; min-height:360px; max-height:calc(100vh - 190px); overflow:auto; padding-right:4px; }
-  .empty { color:var(--muted); text-align:center; padding:60px 20px; }
-  .card { border:1px solid var(--line); border-radius:12px; padding:12px 14px; background:var(--bg); position:relative; }
-  .card.A { border-left:4px solid var(--a); } .card.B { border-left:4px solid var(--b); }
-  .card .meta { font-size:12px; color:var(--muted); display:flex; gap:8px; align-items:center; }
-  .card .src { margin-top:4px; color:var(--muted); }
-  .card .tgt { margin-top:4px; font-size:18px; font-weight:500; white-space:pre-wrap; }
-  .card .tgt.err { color:var(--danger); font-size:14px; }
-  .card .acts { margin-left:auto; display:flex; gap:4px; }
-  .card .acts button { padding:2px 8px; font-size:12px; }
-  .card .explain { margin-top:8px; padding:8px 10px; border-radius:8px; background:var(--panel); border:1px dashed var(--line); font-size:14px; white-space:pre-wrap; }
-  @media (max-width: 600px) {
-    header { padding:10px 16px; }
-    header h1 { font-size:16px; white-space:nowrap; }
-    #statusText { display:none; }
-    main { padding:12px; gap:12px; }
-    .panel { padding:12px; }
-    .toolbar strong.grow { flex:1 1 100%; }
-    .toolbar button { flex:1; padding:7px 6px; font-size:13px; }
-    .card .meta { flex-wrap:wrap; }
-    .card .acts { margin-left:0; width:100%; justify-content:flex-end; }
-    #feed { max-height:none; min-height:200px; }
-  }
-  .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:10px 16px; border-radius:10px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:30; }
-  .toast.on { opacity:.95; }
-  .interim { color:var(--interim); font-style:italic; min-height:24px; padding:6px 2px; }
-  .caret::after { content:"▍"; animation:pulse 1s infinite; color:var(--accent); }
-  .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
-  .toolbar .grow { flex:1; }
-  .text-in { display:flex; gap:8px; margin-top:10px; }
-  .text-in textarea { min-height:48px; }
-  .hint { font-size:12px; color:var(--muted); margin-top:8px; }
-  .warn { background:#fff4e5; color:#8a4b00; border:1px solid #f5c27a; padding:10px 12px; border-radius:10px; font-size:13px; margin-bottom:10px; display:none; }
-  @media (prefers-color-scheme: dark) { .warn { background:#2a1f10; color:#f5c27a; border-color:#6b4a14; } }
-  .seg { flex-wrap:wrap; }
-  .seg button { flex:1 1 30%; }
-  /* video assistant */
-  .cam { position:relative; margin-top:12px; border-radius:12px; overflow:hidden; background:#000; width:100%; height:min(56vh, 120vw); }
-  .cam .cam-answer { position:absolute; left:0; right:0; bottom:0; max-height:45%; overflow:auto; background:linear-gradient(transparent, rgba(0,0,0,.82) 18%); color:#fff; font-size:17px; line-height:1.45; padding:22px 14px 12px; display:none; white-space:pre-wrap; }
-  .cam .cam-answer .cam-q { color:#cbd5e1; font-size:13px; margin-bottom:4px; }
-  .cam video, .cam #still { width:100%; height:100%; object-fit:cover; display:block; }
-  .cam #still { object-fit:contain; background:#000; }
-  .cam .cam-off { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#9aa1b2; font-size:14px; text-align:center; padding:16px; }
-  .cam .cam-state { position:absolute; left:10px; top:10px; background:rgba(0,0,0,.55); color:#fff; font-size:12px; padding:4px 8px; border-radius:8px; display:none; }
-  .cam-row { display:flex; gap:8px; margin-top:8px; }
-  .cam-row button { flex:1; }
-  .card .thumb { width:96px; height:72px; object-fit:cover; border-radius:8px; float:right; margin:0 0 6px 10px; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html { font-size:18px; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font:1rem/1.6 system-ui,-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif; }
+  button, select, input, textarea { font:inherit; color:inherit; }
+  button { cursor:pointer; border:0; background:none; }
+  [hidden] { display:none !important; }
+
+  /* ---------- top bar ---------- */
+  .top { position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:10px;
+    padding:calc(10px + env(safe-area-inset-top)) 16px 10px; background:var(--bg); background:color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter:blur(10px); border-bottom:var(--edge-w) solid var(--edge); }
+  .brand { display:flex; align-items:baseline; gap:8px; min-width:0; }
+  .brand b { color:var(--brand); font-size:1.25rem; letter-spacing:.2px; white-space:nowrap; }
+  .brand span { color:var(--muted); font-size:.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .title { font-size:1.2rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; }
+  .spacer { flex:1; }
+  .pill-btn { display:inline-flex; align-items:center; gap:6px; padding:10px 16px; border-radius:999px;
+    background:var(--surface); border:var(--edge-w) solid var(--edge); font-size:.95rem; font-weight:600; min-height:48px; white-space:nowrap; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--muted); flex:none; }
+  .dot.ok { background:var(--brand); } .dot.bad { background:var(--danger); }
+
+  main { max-width:760px; margin:0 auto; padding:16px 16px 24px; }
+  .banner { background:var(--danger-soft); color:var(--danger); border-radius:14px; padding:12px 16px; margin-bottom:14px; font-size:.95rem; }
+
+  /* ---------- home ---------- */
+  .hello { font-size:1.5rem; font-weight:800; margin:6px 2px 4px; }
+  .sub { color:var(--muted); margin:0 2px 16px; }
+  .invite-card { background:var(--surface); border:3px solid var(--brand); border-radius:var(--radius); padding:18px; margin-bottom:18px; box-shadow:var(--shadow); }
+  .invite-card h2 { margin:0 0 4px; font-size:1.15rem; }
+  .invite-row { display:flex; gap:10px; margin-top:12px; }
+  .invite-row input { flex:1; min-width:0; }
+  .tiles { display:grid; grid-template-columns:1fr; gap:16px; }
+  @media (min-width: 640px) { .tiles { grid-template-columns:1fr 1fr; } }
+  .tile { display:flex; align-items:center; gap:16px; text-align:left; background:var(--surface); border:var(--edge-w) solid var(--edge);
+    border-radius:var(--radius); padding:18px; box-shadow:var(--shadow); min-height:104px; transition:transform .08s; }
+  .tile:active { transform:scale(.98); }
+  .tile .ic { flex:none; width:64px; height:64px; border-radius:18px; display:grid; place-items:center; font-size:2rem; background:var(--brand-soft); border:var(--edge-w) solid color-mix(in srgb, var(--brand) 35%, transparent); }
+  .tile b { display:block; font-size:1.2rem; line-height:1.35; }
+  .tile small { display:block; color:var(--muted); font-size:.9rem; line-height:1.45; margin-top:2px; }
+  .tile.main { border:3px solid var(--brand); }
+
+  /* ---------- work view ---------- */
+  /* two full-width rows (from / to) so long language names are never cut off; swap button on the right */
+  .langbar { background:var(--surface); border:3px solid var(--brand); border-radius:var(--radius); padding:12px 14px; box-shadow:var(--shadow);
+    display:grid; grid-template-columns:1fr auto; column-gap:12px; row-gap:10px; align-items:end; }
+  .langbar .lf { min-width:0; grid-column:1; }
+  .langbar .swap { grid-column:2; grid-row:1 / span 2; align-self:center; }
+  .langbar label { display:block; font-size:.8rem; font-weight:700; color:var(--muted); margin:0 4px 4px; }
+  .langbar.a-b .lf:first-child label { color:var(--a); } .langbar.a-b .lf:last-child label { color:var(--b); }
+  select, input[type=text], textarea { width:100%; border:var(--edge-w) solid var(--edge); background:var(--bg); border-radius:14px;
+    padding:12px 14px; font-size:1.05rem; min-height:54px; }
+  select { appearance:none; -webkit-appearance:none; font-weight:600;
+    background-image:linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position:calc(100% - 20px) 50%, calc(100% - 14px) 50%; background-size:6px 6px; background-repeat:no-repeat; padding-right:34px; }
+  .swap { flex:none; width:54px; height:54px; border-radius:50%; border:var(--edge-w) solid var(--edge); background:var(--bg); font-size:1.3rem; }
+  .subrow { display:flex; justify-content:flex-end; margin-top:8px; }
+  .link-btn { color:var(--brand); font-weight:700; padding:8px 6px; font-size:.95rem; min-height:44px; }
+
+  /* camera stage */
+  .stage { position:relative; margin-top:18px; border-radius:var(--radius); overflow:hidden; background:#000; height:min(52vh, 110vw); box-shadow:var(--shadow); border:3px solid var(--ink); }
+  .stage video, .stage img.still { width:100%; height:100%; object-fit:cover; display:block; }
+  .stage img.still { object-fit:contain; }
+  .stage .off { position:absolute; inset:0; display:grid; place-items:center; text-align:center; color:#d6dbd8; padding:24px; font-size:1.05rem; line-height:1.7; }
+  .stage .off b { display:block; font-size:2.6rem; margin-bottom:6px; }
+  .stage .tools { position:absolute; top:10px; right:10px; display:flex; gap:8px; }
+  .stage .tools button { background:rgba(0,0,0,.55); color:#fff; border-radius:999px; padding:8px 14px; font-size:.9rem; font-weight:600; min-height:44px; }
+  .stage .state { position:absolute; top:12px; left:12px; background:rgba(0,0,0,.6); color:#fff; font-size:.9rem; padding:6px 12px; border-radius:999px; }
+  .stage .answer { position:absolute; left:0; right:0; bottom:0; max-height:48%; overflow:auto; color:#fff; padding:28px 16px 14px;
+    background:linear-gradient(transparent, rgba(0,0,0,.85) 20%); font-size:1.15rem; line-height:1.55; white-space:pre-wrap; }
+  .stage .answer .q { color:#c9d3ce; font-size:.85rem; margin-bottom:4px; }
+
+  /* transcript */
+  .listening { margin-top:16px; border:var(--edge-w) solid var(--brand); background:var(--brand-soft); color:var(--ink); border-radius:16px; padding:12px 16px; font-size:1.05rem; }
+  .listening::before { content:"正在聽："; color:var(--brand); font-weight:700; }
+  .sect { display:flex; align-items:center; gap:10px; margin:22px 2px 0; font-size:.95rem; font-weight:800; color:var(--muted); }
+  .sect::after { content:""; flex:1; height:var(--edge-w); background:var(--edge); border-radius:2px; }
+  #feed { margin-top:12px; display:flex; flex-direction:column; gap:14px; }
+  .empty { background:var(--surface); border:var(--edge-w) dashed var(--edge); border-radius:var(--radius); padding:26px 20px; color:var(--muted); text-align:center; line-height:1.8; }
+  .empty b { display:block; color:var(--ink); font-size:1.1rem; margin-bottom:6px; }
+  .card { background:var(--surface); border:var(--edge-w) solid var(--edge); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); }
+  .card.A { border-left:6px solid var(--a); } .card.B { border-left:6px solid var(--b); }
+  .card .meta { font-size:.8rem; color:var(--muted); display:flex; gap:8px; flex-wrap:wrap; }
+  .card .meta .who { font-weight:700; }
+  .card.A .meta .who { color:var(--a); } .card.B .meta .who { color:var(--b); }
+  .card .src { color:var(--muted); margin-top:6px; font-size:1rem; }
+  .card .tgt { margin-top:6px; font-size:1.35rem; font-weight:600; line-height:1.5; white-space:pre-wrap; word-break:break-word; }
+  .card .tgt.err { color:var(--danger); font-size:1rem; font-weight:500; }
+  .card .thumb { width:110px; height:82px; object-fit:cover; border-radius:12px; float:right; margin:4px 0 8px 12px; }
   .card::after { content:""; display:block; clear:both; }
-  /* caption (subtitle) mode */
-  #caption { position:fixed; inset:0; background:#000; color:#fff; display:none; flex-direction:column; justify-content:flex-end; padding:5vh 6vw; z-index:20; }
+  .card .acts { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; padding-top:12px; border-top:var(--edge-w) solid var(--line); }
+  .card .acts button { background:var(--bg); border:var(--edge-w) solid var(--edge); border-radius:999px; padding:8px 14px; font-size:.9rem; font-weight:600; min-height:44px; }
+  .card .explain { margin-top:12px; padding:12px 14px; border-radius:14px; background:var(--brand-soft); border-left:4px solid var(--brand); font-size:1rem; white-space:pre-wrap; }
+  .caret::after { content:"▍"; color:var(--brand); animation:blink 1s infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+
+  /* ---------- bottom dock (one big action) ---------- */
+  .dock { position:fixed; left:0; right:0; bottom:0; z-index:10; background:var(--surface); background:color-mix(in srgb, var(--surface) 96%, transparent);
+    backdrop-filter:blur(10px); border-top:3px solid var(--brand); box-shadow:0 -8px 24px rgba(0,0,0,.08);
+    padding:14px 16px calc(14px + env(safe-area-inset-bottom)); }
+  .dock-in { max-width:760px; margin:0 auto; }
+  .big { width:100%; min-height:72px; border-radius:22px; font-size:1.3rem; font-weight:800; display:flex; align-items:center; justify-content:center; gap:10px;
+    background:var(--brand); color:var(--brand-ink); box-shadow:0 4px 14px color-mix(in srgb, var(--brand) 35%, transparent); }
+  .big.rec { background:var(--rec); color:#fff; box-shadow:0 4px 14px color-mix(in srgb, var(--rec) 35%, transparent); animation:pulse 1.4s infinite; }
+  @keyframes pulse { 50% { filter:brightness(1.12); } }
+  .hint { text-align:center; color:var(--muted); font-size:.85rem; margin-top:8px; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .talk { min-height:84px; border-radius:22px; font-size:1.15rem; font-weight:800; line-height:1.3; padding:8px; }
+  .talk small { display:block; font-size:.85rem; font-weight:600; opacity:.85; }
+  .talk.A { background:var(--a-soft); color:var(--a); border:2px solid var(--a); }
+  .talk.B { background:var(--b-soft); color:var(--b); border:2px solid var(--b); }
+  .talk.rec { background:var(--rec); border-color:var(--rec); color:#fff; animation:pulse 1.4s infinite; }
+  .row3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:10px; }
+  .soft { background:var(--bg); border:var(--edge-w) solid var(--edge); border-radius:16px; min-height:56px; font-size:.95rem; font-weight:700; padding:6px; }
+  .typing { display:flex; gap:10px; align-items:flex-end; }
+  .typing textarea { min-height:56px; max-height:140px; resize:none; }
+  .send { flex:none; min-width:84px; min-height:56px; border-radius:16px; background:var(--brand); color:var(--brand-ink); font-weight:800; font-size:1.1rem; padding:0 14px; }
+
+  /* ---------- settings sheet ---------- */
+  .sheet-bg { position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:30; }
+  .sheet { position:fixed; left:0; right:0; bottom:0; z-index:31; max-height:88vh; overflow:auto; background:var(--bg); border-top:3px solid var(--brand);
+    border-radius:24px 24px 0 0; padding:8px 16px calc(24px + env(safe-area-inset-bottom)); }
+  .sheet-in { max-width:760px; margin:0 auto; }
+  .sheet-head { display:flex; align-items:center; position:sticky; top:0; background:var(--bg); padding:10px 0; z-index:1; }
+  .sheet-head h2 { margin:0; font-size:1.3rem; flex:1; }
+  .group { background:var(--surface); border:var(--edge-w) solid var(--edge); border-radius:var(--radius); padding:6px 16px; margin-top:16px; box-shadow:var(--shadow); }
+  .group h3 { font-size:.9rem; color:var(--brand); margin:12px 0 4px; letter-spacing:.5px; }
+  .item { padding:12px 0; border-top:1px solid var(--line); }
+  .group h3 + .item { border-top:0; }
+  .switch { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:52px; }
+  .switch input { appearance:none; -webkit-appearance:none; width:58px; height:34px; border-radius:999px; background:var(--line); position:relative; flex:none; transition:background .15s; }
+  .switch input::after { content:""; position:absolute; top:3px; left:3px; width:28px; height:28px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:left .15s; }
+  .switch input:checked { background:var(--brand); }
+  .switch input:checked::after { left:27px; }
+  .status { font-size:.95rem; margin-top:8px; }
+  .status.ok { color:var(--brand); } .status.bad { color:var(--danger); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .danger { color:var(--danger); }
+
+  .toast { position:fixed; left:50%; bottom:calc(150px + env(safe-area-inset-bottom)); transform:translateX(-50%); background:var(--ink); color:var(--bg);
+    padding:12px 20px; border-radius:999px; font-size:1rem; opacity:0; transition:opacity .2s; pointer-events:none; z-index:40; max-width:90vw; text-align:center; }
+  .toast.on { opacity:.95; }
+
+  /* fullscreen captions */
+  #caption { position:fixed; inset:0; background:#000; color:#fff; display:none; flex-direction:column; justify-content:flex-end; padding:5vh 6vw; z-index:50; }
   #caption.on { display:flex; }
   #caption .c-src { color:#9aa1b2; font-size:3.2vh; margin-bottom:1.5vh; }
-  #caption .c-tgt { font-size:var(--cap, 6vh); font-weight:600; line-height:1.3; }
-  #caption .c-close { position:absolute; top:16px; right:16px; background:#222; color:#fff; border-color:#444; }
-  #caption .c-size { position:absolute; top:16px; left:16px; display:flex; gap:6px; }
-  #caption .c-size button { background:#222; color:#fff; border-color:#444; }
+  #caption .c-tgt { font-size:var(--cap, 6vh); font-weight:700; line-height:1.3; }
+  #caption .c-bar { position:absolute; top:calc(16px + env(safe-area-inset-top)); left:16px; right:16px; display:flex; gap:8px; }
+  #caption .c-bar button { background:#222; color:#fff; border-radius:999px; padding:10px 16px; min-height:48px; font-weight:700; }
 </style>
 </head>
 <body>
-<header>
-  <h1><span>Muối Từ</span> · Phiên Dịch AI</h1>
-  <div class="status"><span class="dot" id="dot"></span><span id="statusText">檢查伺服器…</span></div>
+
+<header class="top">
+  <button class="pill-btn" id="backBtn" hidden aria-label="回首頁">‹ 首頁</button>
+  <div class="brand" id="brand"><b>Muối Từ</b><span>Phiên Dịch AI</span></div>
+  <div class="title" id="viewTitle" hidden></div>
+  <div class="spacer" id="topSpacer"></div>
+  <button class="pill-btn" id="settingsBtn" aria-label="設定"><span class="dot" id="dot"></span>⚙️ 設定</button>
 </header>
 
 <main>
-  <section class="panel" id="controls">
-    <div id="inviteBox">
-      <h2>邀請碼</h2>
-      <div class="row" style="align-items:center">
-        <div><input type="text" id="invite" placeholder="MT-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
-        <button id="inviteSave">確認</button>
+  <div class="banner" id="warn" hidden></div>
+
+  <!-- ================= HOME ================= -->
+  <section id="home">
+    <div class="invite-card" id="inviteCard" hidden>
+      <h2>🔑 請輸入邀請碼</h2>
+      <div style="color:var(--muted)">邀請碼由送你這個網址的人提供，輸入一次就會記住。</div>
+      <div class="invite-row">
+        <input type="text" id="inviteHome" placeholder="例如 TUMUOI-1954" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <button class="send" data-save-invite="inviteHome">確認</button>
       </div>
-      <div class="hint" id="inviteStatus"></div>
-    </div>
-    <h2 style="margin-top:14px">模式</h2>
-    <div class="seg" id="modeSeg">
-      <button data-mode="speech" class="on">🎙 演講字幕</button>
-      <button data-mode="convo">💬 雙人對話</button>
-      <button data-mode="text">⌨️ 文字</button>
-      <button data-mode="compose">✍️ 社群</button>
-      <button data-mode="vision">📹 視訊助手</button>
+      <div class="status" id="inviteHomeStatus"></div>
     </div>
 
-    <div class="row" style="margin-top:6px">
-      <div>
-        <label for="srcLang" id="srcLabel">來源語言</label>
-        <select id="srcLang"></select>
-      </div>
-      <button id="swap" title="交換語言" style="margin-bottom:1px">⇄</button>
-      <div>
-        <label for="tgtLang" id="tgtLabel">目標語言</label>
-        <select id="tgtLang"></select>
-      </div>
+    <div class="hello">您好！今天要做什麼？</div>
+    <p class="sub">點一下下面的大按鈕就可以開始。</p>
+    <div class="tiles">
+      <button class="tile main" data-go="speech"><span class="ic">🎙</span><span><b>聽我說，幫我翻譯</b><small>對著手機說話，一句一句馬上翻成另一種語言</small></span></button>
+      <button class="tile" data-go="convo"><span class="ic">💬</span><span><b>兩個人對話</b><small>你說一句、對方說一句，自動雙向翻譯</small></span></button>
+      <button class="tile" data-go="vision"><span class="ic">📹</span><span><b>拍給 AI 看</b><small>用鏡頭或照片問 AI：藥盒、菜單、路牌、說明書</small></span></button>
+      <button class="tile" data-go="text"><span class="ic">⌨️</span><span><b>打字翻譯</b><small>輸入任何語言的文字，自動翻譯</small></span></button>
+      <button class="tile" data-go="compose"><span class="ic">✍️</span><span><b>寫訊息給朋友</b><small>用自己的話寫，翻好自動複製，直接貼到聊天</small></span></button>
     </div>
-
-    <label for="style" id="styleLabel">翻譯風格</label>
-    <select id="style">
-      <option value="natural">自然（忠實原意）</option>
-      <option value="casual">輕鬆口語（像跟朋友聊天）</option>
-      <option value="social">社群道地（網路用語 / 流行語）</option>
-      <option value="formal">正式禮貌</option>
-      <option value="business">商務專業</option>
-    </select>
-
-    <div id="speechCtl">
-      <button class="big primary" id="micBtn">● 開始聆聽</button>
-    </div>
-    <div id="convoCtl" style="display:none">
-      <div class="talk">
-        <button class="ta" id="talkA">A 說話</button>
-        <button class="tb" id="talkB">B 說話</button>
-      </div>
-      <div class="hint">按一下開始，再按一下結束。A 使用來源語言，B 使用目標語言，翻譯互相對調。</div>
-    </div>
-    <div id="visionCtl" style="display:none">
-      <div class="cam">
-        <video id="cam" playsinline muted autoplay></video>
-        <img id="still" alt="上傳的圖片" style="display:none">
-        <div class="cam-off" id="camOff">按下「開啟鏡頭」，把鏡頭對準要問的東西</div>
-        <div class="cam-state" id="camState"></div>
-        <div class="cam-answer" id="camAnswer"><div class="cam-q" id="camQ"></div><div id="camA"></div></div>
-      </div>
-      <div class="cam-row">
-        <button id="camBtn">📷 開啟鏡頭</button>
-        <button id="camFlip" title="切換前後鏡頭">🔄 前 / 後</button>
-        <button id="uploadBtn" title="從相簿選圖片或拍照">🖼 上傳圖片</button>
-      </div>
-      <input type="file" id="imgFile" accept="image/*" hidden>
-      <button class="big primary" id="askBtn">🎙 按一下，開口問</button>
-      <button id="lookBtn" style="width:100%;margin-top:8px">👀 看一下畫面（不用說話）</button>
-      <label class="check"><input type="checkbox" id="voiceReply" checked> 🔊 每次回答都用語音唸出來</label>
-      <div class="hint">AI 會看鏡頭畫面（或你上傳的圖片）＋聽你的問題，用「我的語言」回答並唸出來。也可以在輸入框打字問。上傳圖片後可以繼續針對同一張圖追問；按「開啟鏡頭」回到即時畫面。</div>
-    </div>
-
-    <label class="check"><input type="checkbox" id="tts"> 自動朗讀翻譯 (TTS)</label>
-    <label class="check"><input type="checkbox" id="showSrc" checked> 顯示原文</label>
-
-    <label for="glossary">專有名詞表（選填，一行一條：原文 = 譯文）</label>
-    <textarea id="glossary" placeholder="TrendRadar = TrendRadar&#10;招標 = tender"></textarea>
-    <button id="installBtn" style="display:none;width:100%;margin-top:12px">📲 安裝到手機 / 桌面</button>
-    <div class="hint">語音辨識使用瀏覽器內建 Web Speech API（建議 Chrome / Edge / Safari）。翻譯由 Claude 串流生成。</div>
   </section>
 
-  <section class="panel">
-    <div class="warn" id="warn"></div>
-    <div class="toolbar">
-      <strong class="grow">即時逐字稿</strong>
-      <button id="captionBtn">🖥 全螢幕字幕</button>
-      <button id="exportTxt">⬇ TXT</button>
-      <button id="exportSrt">⬇ SRT</button>
-      <button id="clearBtn">清除</button>
+  <!-- ================= WORK VIEW (shared by every function) ================= -->
+  <section id="work" hidden>
+    <div class="langbar" id="langbar">
+      <div class="lf"><label for="srcLang" id="srcLabel">我說的語言</label><select id="srcLang"></select></div>
+      <button class="swap" id="swap" aria-label="交換語言">⇄</button>
+      <div class="lf" id="tgtBox"><label for="tgtLang" id="tgtLabel">翻譯成</label><select id="tgtLang"></select></div>
     </div>
-    <div class="interim" id="interim"></div>
-    <div id="feed"><div class="empty" id="empty">按「開始聆聽」並說話，翻譯會即時出現在這裡（最新的在最上面）。</div></div>
-    <div class="text-in" id="textCtl" style="display:none">
-      <textarea id="textIn" placeholder="輸入要翻譯的文字，Enter 送出（Shift+Enter 換行）"></textarea>
-      <button class="primary" id="sendText">翻譯</button>
+    <div class="subrow" id="captionRow"><button class="link-btn" id="captionBtn">🖥 全螢幕大字幕</button></div>
+
+    <div class="stage" id="stage" hidden>
+      <video id="cam" playsinline muted autoplay></video>
+      <img class="still" id="still" alt="上傳的照片" hidden>
+      <div class="off" id="camOff"><div><b>📷</b>按下面「開口問」或「看一下」<br>就會打開鏡頭</div></div>
+      <div class="state" id="camState" hidden></div>
+      <div class="tools"><button id="camBtn">📷 開鏡頭</button><button id="camFlip" aria-label="切換前後鏡頭">🔄 前/後</button></div>
+      <div class="answer" id="camAnswer" hidden><div class="q" id="camQ"></div><div id="camA"></div></div>
     </div>
+
+    <div class="sect" id="feedTitle">📝 翻譯紀錄（最新的在最上面）</div>
+    <div class="listening" id="interim" hidden></div>
+    <div id="feed"></div>
   </section>
 </main>
 
-<div class="toast" id="toast"></div>
+<!-- ================= BOTTOM DOCK ================= -->
+<div class="dock" id="dock" hidden>
+  <div class="dock-in">
+    <div id="dSpeech">
+      <button class="big" id="micBtn">🎙 開始聽</button>
+      <div class="hint" id="micHint">按一下開始，說完一句就會自動翻譯</div>
+    </div>
+    <div id="dConvo">
+      <div class="two">
+        <button class="talk A" id="talkA"></button>
+        <button class="talk B" id="talkB"></button>
+      </div>
+      <div class="hint">輪到誰說話，就按誰的按鈕；再按一下停止</div>
+    </div>
+    <div id="dVision">
+      <button class="big" id="askBtn">🎙 按一下，開口問</button>
+      <div class="row3">
+        <button class="soft" id="lookBtn">👀 看一下</button>
+        <button class="soft" id="uploadBtn">🖼 上傳照片</button>
+        <button class="soft" id="typeBtn">⌨️ 打字問</button>
+      </div>
+      <input type="file" id="imgFile" accept="image/*" hidden>
+    </div>
+    <div class="typing" id="dTyping" style="margin-top:10px">
+      <textarea id="textIn" rows="1" placeholder="在這裡輸入…"></textarea>
+      <button class="send" id="sendText">翻譯</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SETTINGS ================= -->
+<div class="sheet-bg" id="sheetBg" hidden></div>
+<div class="sheet" id="sheet" hidden role="dialog" aria-label="設定">
+  <div class="sheet-in">
+    <div class="sheet-head"><h2>⚙️ 設定</h2><button class="pill-btn" id="sheetClose">完成</button></div>
+
+    <div class="group">
+      <h3>連線</h3>
+      <div class="item">
+        <div style="font-weight:700">邀請碼</div>
+        <div class="invite-row">
+          <input type="text" id="inviteSet" placeholder="例如 TUMUOI-1954" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button class="send" data-save-invite="inviteSet">確認</button>
+        </div>
+        <div class="status" id="serverStatus">檢查中…</div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>聲音</h3>
+      <label class="item switch"><span>翻譯好自動唸出來</span><input type="checkbox" id="tts"></label>
+      <label class="item switch"><span>「拍給 AI 看」每次都用語音回答</span><input type="checkbox" id="voiceReply"></label>
+    </div>
+
+    <div class="group">
+      <h3>翻譯</h3>
+      <div class="item">
+        <div style="font-weight:700;margin-bottom:6px">翻譯風格</div>
+        <select id="style">
+          <option value="natural">自然（忠實原意）</option>
+          <option value="casual">輕鬆口語（像跟朋友聊天）</option>
+          <option value="social">社群道地（網路用語 / 流行語）</option>
+          <option value="formal">正式禮貌</option>
+          <option value="business">商務專業</option>
+        </select>
+      </div>
+      <label class="item switch"><span>顯示原文</span><input type="checkbox" id="showSrc"></label>
+      <div class="item">
+        <div style="font-weight:700">專有名詞（選填）</div>
+        <div style="color:var(--muted);font-size:.85rem;margin-bottom:6px">一行一條，例如：招標 = tender</div>
+        <textarea id="glossary" rows="3"></textarea>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>紀錄</h3>
+      <div class="item grid2">
+        <button class="soft" id="exportTxt">⬇ 下載文字檔</button>
+        <button class="soft" id="exportSrt">⬇ 下載字幕檔</button>
+      </div>
+      <div class="item"><button class="soft danger" id="clearBtn" style="width:100%">🗑 清除所有紀錄</button></div>
+      <div class="item" id="installItem" hidden><button class="soft" id="installBtn" style="width:100%">📲 安裝到手機主畫面</button></div>
+    </div>
+    <p class="hint">語音辨識使用手機瀏覽器內建功能（iPhone 請用 Safari）。翻譯由 Claude AI 提供。</p>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
 <div id="caption">
-  <div class="c-size"><button id="capMinus">A−</button><button id="capPlus">A+</button></div>
-  <button class="c-close" id="capClose">✕ 關閉 (Esc)</button>
+  <div class="c-bar"><button id="capMinus">A−</button><button id="capPlus">A+</button><span class="spacer"></span><button id="capClose">✕ 關閉</button></div>
   <div class="c-src" id="capSrc"></div>
-  <div class="c-tgt" id="capTgt">等待語音…</div>
+  <div class="c-tgt" id="capTgt">等待說話…</div>
 </div>
 
 <script>
-// ---------- Languages: [speech-recognition BCP-47, display name, name sent to the model] ----------
+// ===================== data & helpers =====================
 const LANGS = [
   ["zh-TW","繁體中文（台灣）","Traditional Chinese (Taiwan)"],
   ["zh-HK","粵語（香港）","Cantonese / Traditional Chinese (Hong Kong)"],
@@ -278,112 +386,133 @@ const LANGS = [
   ["wo-SN","Wolof","Wolof"],
 ];
 const $ = (id) => document.getElementById(id);
+const show = (el, on) => { (typeof el === "string" ? $(el) : el).hidden = !on; };
 const store = {
   get(k, d) { try { const v = localStorage.getItem("ll_" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem("ll_" + k, JSON.stringify(v)); } catch {} },
 };
 const langName = (code) => (LANGS.find(l => l[0] === code) || [code, code, code])[2];
-const langLabel = (code) => (LANGS.find(l => l[0] === code) || [code, code])[1];
+const langLabel = (code) => code === "auto" ? "自動偵測" : (LANGS.find(l => l[0] === code) || [code, code])[1];
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("on"), 2400); }
+function showWarn(msg) { $("warn").textContent = msg; show("warn", !!msg); }
+$("warn").onclick = () => show("warn", false);
 
-for (const sel of [$("srcLang"), $("tgtLang")]) {
-  for (const [code, label] of LANGS) sel.add(new Option(label, code));
-}
+// ===================== the five functions =====================
+const MODES = {
+  speech:  { title: "🎙 聽我說", empty: ["按下面的綠色大按鈕，對著手機說話", "每說完一句，翻譯就會出現在這裡（最新的在最上面）"] },
+  convo:   { title: "💬 兩個人對話", empty: ["輪到誰說話，就按下面誰的按鈕", "藍色是你，橘色是對方；翻譯會自動對調"] },
+  vision:  { title: "📹 拍給 AI 看", empty: ["把鏡頭對準要問的東西，按「開口問」", "也可以按「看一下」讓 AI 說明畫面，或「上傳照片」"] },
+  text:    { title: "⌨️ 打字翻譯", empty: ["在下面輸入文字，按「翻譯」", "任何語言都可以，會自動偵測"] },
+  compose: { title: "✍️ 寫訊息", empty: ["用自己的語言寫下想說的話，按「翻譯」", "翻好會自動複製，直接到聊天軟體貼上就好"] },
+};
+let mode = "home";
+
+// ===================== settings & language pickers =====================
+for (const sel of [$("srcLang"), $("tgtLang")]) for (const [code, label] of LANGS) sel.add(new Option(label, code));
 $("srcLang").value = store.get("src", "zh-TW");
 $("tgtLang").value = store.get("tgt", "en-US");
 $("tts").checked = store.get("tts", false);
+$("voiceReply").checked = store.get("voiceReply", true);
 $("showSrc").checked = store.get("showSrc", true);
 $("glossary").value = store.get("glossary", "");
 $("style").value = store.get("style", "natural");
 $("style").onchange = () => store.set("style", $("style").value);
-for (const id of ["srcLang","tgtLang"]) $(id).onchange = () => { store.set(id === "srcLang" ? "src" : "tgt", $(id).value); updateTalkLabels(); restartIfListening(); };
 $("tts").onchange = () => store.set("tts", $("tts").checked);
-$("showSrc").onchange = () => { store.set("showSrc", $("showSrc").checked); document.querySelectorAll(".card .src").forEach(e => e.style.display = $("showSrc").checked ? "" : "none"); };
+$("voiceReply").onchange = () => { store.set("voiceReply", $("voiceReply").checked); if (!$("voiceReply").checked) window.speechSynthesis?.cancel(); };
+$("showSrc").onchange = () => { store.set("showSrc", $("showSrc").checked); renderFeed(); };
 $("glossary").oninput = () => store.set("glossary", $("glossary").value);
-$("swap").onclick = () => { const s = $("srcLang").value; $("srcLang").value = $("tgtLang").value; $("tgtLang").value = s; $("srcLang").onchange(); store.set("tgt", $("tgtLang").value); };
+for (const id of ["srcLang", "tgtLang"]) $(id).onchange = () => { store.set(id === "srcLang" ? "src" : "tgt", $(id).value); updateTalkLabels(); restartIfListening(); };
+$("swap").onclick = () => { const s = $("srcLang").value; $("srcLang").value = $("tgtLang").value; $("tgtLang").value = s;
+  store.set("src", $("srcLang").value); store.set("tgt", $("tgtLang").value); updateTalkLabels(); restartIfListening(); };
 
-// ---------- Invite code + server health ----------
-const inviteCode = () => ($("invite").value || "").trim().toUpperCase();
-$("invite").value = store.get("invite", "");
+function openSheet() { show("sheet", true); show("sheetBg", true); checkServer(); }
+function closeSheet() { show("sheet", false); show("sheetBg", false); }
+$("settingsBtn").onclick = openSheet; $("sheetClose").onclick = closeSheet; $("sheetBg").onclick = closeSheet;
+
+// ===================== invite code + server health =====================
+const inviteCode = () => (store.get("invite", "") || "").trim().toUpperCase();
+$("inviteHome").value = $("inviteSet").value = inviteCode();
+document.querySelectorAll("[data-save-invite]").forEach(btn => {
+  const input = $(btn.dataset.saveInvite);
+  const save = () => { const v = input.value.trim().toUpperCase(); store.set("invite", v); $("inviteHome").value = $("inviteSet").value = v; checkServer(); };
+  btn.onclick = save; input.onkeydown = (e) => { if (e.key === "Enter") save(); };
+});
+let inviteOk = true;
 function checkServer() {
   return fetch("/api/health", { headers: { "X-Invite-Code": inviteCode() } }).then(r => r.json()).then(h => {
-    $("warn").style.display = "none";
-    const inviteOk = !h.invite_required || h.invite === "ok";
-    $("dot").className = "dot " + (h.credentials && inviteOk ? "ok" : "");
-    $("statusText").textContent = !h.credentials ? "伺服器缺少 ANTHROPIC_API_KEY" : inviteOk ? "已連線 · " + h.model : "需要邀請碼";
-    if (!h.credentials) showWarn("伺服器未設定 ANTHROPIC_API_KEY，翻譯會失敗。請在啟動前設定環境變數。");
-    $("inviteBox").style.display = h.invite_required ? "" : "none";
-    if (!h.invite_required) return;
-    const st = $("inviteStatus");
-    if (h.invite === "ok") {
-      st.style.color = "var(--accent)";
-      st.textContent = `✓ ${h.invite_name}，歡迎使用` + (h.daily_limit ? `（今天已用 ${h.used_today} / ${h.daily_limit} 次）` : "");
-    } else {
-      st.style.color = "var(--danger)";
-      st.textContent = h.invite_message || "請輸入邀請碼";
-      if (h.invite !== "missing") showWarn(h.invite_message);
-    }
-  }).catch(() => { $("statusText").textContent = "無法連線伺服器"; });
+    inviteOk = !h.invite_required || h.invite === "ok";
+    const ok = h.credentials && inviteOk;
+    $("dot").className = "dot " + (ok ? "ok" : "bad");
+    let msg, cls;
+    if (!h.credentials) { msg = "伺服器還沒設定 API 金鑰，暫時不能翻譯。"; cls = "bad"; }
+    else if (!inviteOk) { msg = h.invite_message || "請輸入邀請碼"; cls = "bad"; }
+    else { msg = (h.invite_name ? `✓ ${h.invite_name}，已連線，可以使用` : "✓ 已連線，可以使用") + (h.daily_limit ? `（今天已用 ${h.used_today} / ${h.daily_limit} 次）` : ""); cls = "ok"; }
+    for (const id of ["serverStatus", "inviteHomeStatus"]) { $(id).textContent = msg; $(id).className = "status " + cls; }
+    show("inviteCard", h.invite_required && !inviteOk);
+  }).catch(() => { $("dot").className = "dot bad"; $("serverStatus").textContent = "連不上伺服器，請檢查網路。"; $("serverStatus").className = "status bad"; });
 }
-$("inviteSave").onclick = () => { $("invite").value = inviteCode(); store.set("invite", inviteCode()); checkServer(); };
-$("invite").onkeydown = (e) => { if (e.key === "Enter") $("inviteSave").onclick(); };
 checkServer();
 
-function showWarn(msg) { $("warn").textContent = msg; $("warn").style.display = "block"; }
+// ===================== navigation (home <-> function), phone back gesture works =====================
+document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { location.hash = b.dataset.go; });
+$("backBtn").onclick = () => { if (history.length > 1 && location.hash) history.back(); else location.hash = ""; };
+window.addEventListener("hashchange", route);
+function route() { const m = location.hash.slice(1); enter(MODES[m] ? m : "home"); }
 
-// ---------- Mode ----------
-let mode = store.get("mode", "speech");
-function setMode(m) {
+function enter(m) {
   if (mode === "vision" && m !== "vision") { stopCamera(); stopAsk(); }
-  mode = m; store.set("mode", m); stopListening();
-  const vis = m === "vision";
-  $("visionCtl").style.display = vis ? "" : "none";
-  $("tgtLang").parentElement.style.display = vis ? "none" : "";
-  $("swap").style.display = vis ? "none" : "";
-  $("style").style.display = $("styleLabel").style.display = vis ? "none" : "";
-  document.querySelectorAll("#modeSeg button").forEach(b => b.classList.toggle("on", b.dataset.mode === m));
-  $("speechCtl").style.display = m === "speech" ? "" : "none";
-  $("convoCtl").style.display = m === "convo" ? "" : "none";
-  $("textCtl").style.display = (m === "text" || m === "compose" || vis) ? "flex" : "none";
-  $("textIn").placeholder = m === "compose"
-    ? "用你的語言寫訊息 / 貼文，翻譯後自動複製，直接貼到 IG、TikTok、WhatsApp、Discord…"
-    : vis ? "打字問 AI（會連同目前鏡頭畫面一起送出）"
-    : "輸入要翻譯的文字，Enter 送出（Shift+Enter 換行）";
+  stopListening();
+  mode = m;
+  const home = m === "home";
+  show("home", home); show("work", !home); show("dock", !home);
+  show("backBtn", !home); show("brand", home); show("viewTitle", !home); show("topSpacer", home);
+  window.scrollTo(0, 0);
+  if (home) { checkServer(); return; }
+  $("viewTitle").textContent = MODES[m].title;
+  const vis = m === "vision", convo = m === "convo";
+  // language bar
+  $("langbar").classList.toggle("a-b", convo);
+  show("tgtBox", !vis); show("swap", !vis);
+  $("srcLabel").textContent = convo ? "藍色（你）說" : vis ? "AI 用這個語言回答" : m === "text" ? "我的語言" : "我說的語言";
+  $("tgtLabel").textContent = convo ? "橘色（對方）說" : "翻譯成";
+  show("captionRow", m === "speech" || convo);
+  show("stage", vis);
+  $("feedTitle").textContent = vis ? "📝 AI 回答紀錄（最新的在最上面）" : "📝 翻譯紀錄（最新的在最上面）";
+  // dock: one clear action per function
+  show("dSpeech", m === "speech"); show("dConvo", convo); show("dVision", vis);
+  const typing = m === "text" || m === "compose";
+  show("dTyping", typing);
+  $("dTyping").style.marginTop = typing ? "0" : "10px";
+  $("textIn").placeholder = m === "compose" ? "寫下想傳給朋友的話…" : vis ? "打字問 AI（會連同畫面一起送出）" : "輸入要翻譯的文字…";
   $("sendText").textContent = vis ? "問" : "翻譯";
-  $("srcLabel").textContent = m === "convo" ? "A 的語言" : vis ? "我的語言（AI 用這個回答）" : "來源語言";
-  $("tgtLabel").textContent = m === "convo" ? "B 的語言" : "目標語言";
-  updateTalkLabels();
-}
-document.querySelectorAll("#modeSeg button").forEach(b => b.onclick = () => setMode(b.dataset.mode));
-function updateTalkLabels() {
-  $("talkA").textContent = (activeSpeaker === "A" ? "■ 停止 · " : "🎙 A · ") + langLabel($("srcLang").value);
-  $("talkB").textContent = (activeSpeaker === "B" ? "■ 停止 · " : "🎙 B · ") + langLabel($("tgtLang").value);
+  updateTalkLabels(); renderListening(); renderFeed(); fitDock();
 }
 
-// ---------- Speech recognition ----------
+// keep the page content clear of the fixed bottom dock
+function fitDock() { document.body.style.paddingBottom = $("dock").hidden ? "0" : ($("dock").offsetHeight + 16) + "px"; }
+new ResizeObserver(fitDock).observe($("dock"));
+
+// ===================== speech recognition (continuous: 聽我說 / 兩個人對話) =====================
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (!SR) showWarn("此瀏覽器不支援語音辨識（Web Speech API）。請使用 Chrome、Edge 或 Safari，或改用「文字」模式。");
-let rec = null, listening = false, activeSpeaker = null; // speaker: "A" | "B"
-
+let rec = null, listening = false, activeSpeaker = null;
 function startListening(speaker) {
-  if (!SR) return;
+  if (!SR) { showWarn("這個瀏覽器不能語音辨識。iPhone 請用 Safari，電腦請用 Chrome；或改用「打字翻譯」。"); return; }
+  unlockTts();
   activeSpeaker = speaker;
-  const lang = speaker === "B" ? $("tgtLang").value : $("srcLang").value;
   rec = new SR();
-  rec.lang = lang; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+  rec.lang = speaker === "B" ? $("tgtLang").value : $("srcLang").value;
+  rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
   rec.onresult = (ev) => {
     let interim = "";
     for (let i = ev.resultIndex; i < ev.results.length; i++) {
       const r = ev.results[i];
-      if (r.isFinal) { const t = r[0].transcript.trim(); if (t) addSegment(t, speaker); }
-      else interim += r[0].transcript;
+      if (r.isFinal) { const t = r[0].transcript.trim(); if (t) addSegment(t, speaker); } else interim += r[0].transcript;
     }
-    $("interim").textContent = interim;
+    setInterim(interim);
     if (interim && $("caption").classList.contains("on")) $("capSrc").textContent = interim;
   };
-  rec.onerror = (e) => {
-    if (e.error === "not-allowed" || e.error === "service-not-allowed") { showWarn("麥克風權限被拒絕，請在瀏覽器網址列允許麥克風。"); stopListening(); }
-  };
-  rec.onend = () => { if (listening && rec) { try { rec.start(); } catch {} } }; // Chrome stops after silence: auto-restart
+  rec.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") { showWarn("麥克風被擋住了：請在瀏覽器允許使用麥克風。"); stopListening(); } };
+  rec.onend = () => { if (listening && rec) { try { rec.start(); } catch {} } };
   listening = true;
   try { rec.start(); } catch {}
   renderListening();
@@ -391,37 +520,38 @@ function startListening(speaker) {
 function stopListening() {
   listening = false;
   if (rec) { const r = rec; rec = null; try { r.stop(); } catch {} }
-  activeSpeaker = null; $("interim").textContent = ""; renderListening();
+  activeSpeaker = null; setInterim(""); renderListening();
 }
 function restartIfListening() { if (listening) { const s = activeSpeaker; stopListening(); startListening(s); } }
+function setInterim(t) { $("interim").textContent = t; show("interim", !!t); }
 function renderListening() {
-  const mic = $("micBtn");
-  mic.className = "big " + (listening && mode === "speech" ? "rec" : "primary");
-  mic.textContent = listening && mode === "speech" ? "■ 停止聆聽" : "● 開始聆聽";
+  const on = listening && mode === "speech";
+  $("micBtn").className = "big" + (on ? " rec" : "");
+  $("micBtn").textContent = on ? "■ 停止" : "🎙 開始聽";
+  $("micHint").textContent = on ? "正在聽…說完一句就會自動翻譯" : "按一下開始，說完一句就會自動翻譯";
   $("talkA").classList.toggle("rec", activeSpeaker === "A");
   $("talkB").classList.toggle("rec", activeSpeaker === "B");
   updateTalkLabels();
-  $("dot").classList.toggle("live", listening);
+}
+function updateTalkLabels() {
+  $("talkA").innerHTML = (activeSpeaker === "A" ? "■ 停止" : "🎙 你說") + `<small>${langLabel($("srcLang").value)}</small>`;
+  $("talkB").innerHTML = (activeSpeaker === "B" ? "■ 停止" : "🎙 對方說") + `<small>${langLabel($("tgtLang").value)}</small>`;
 }
 $("micBtn").onclick = () => listening ? stopListening() : startListening("A");
-for (const s of ["A","B"]) $("talk" + s).onclick = () => {
-  const was = activeSpeaker; stopListening(); if (was !== s) startListening(s);
-};
+for (const s of ["A", "B"]) $("talk" + s).onclick = () => { const was = activeSpeaker; stopListening(); if (was !== s) startListening(s); };
 
-// ---------- Segments & translation ----------
+// ===================== translation cards =====================
 const segments = store.get("segments", []);
-let sessionStart = store.get("sessionStart", Date.now());
+for (const s of segments) if (s.state === "pending") { s.state = "error"; s.err = "（中斷了，按「重試」）"; }
 const ttsQueue = [];
+const visible = (seg) => mode === "vision" ? seg.kind === "vision" : seg.kind !== "vision";
 
 function addSegment(text, speaker) {
-  const fromCode = speaker === "B" ? $("tgtLang").value : (mode === "text" ? "auto" : $("srcLang").value);
-  const toCode = speaker === "B" ? $("srcLang").value : $("tgtLang").value;
-  if (!segments.length) { sessionStart = Date.now(); store.set("sessionStart", sessionStart); }
+  const from = speaker === "B" ? $("tgtLang").value : (mode === "text" ? "auto" : $("srcLang").value);
+  const to = speaker === "B" ? $("srcLang").value : $("tgtLang").value;
   const seg = { id: Date.now() + Math.random(), t: Date.now(), speaker: mode === "convo" ? speaker : null,
-    from: fromCode, to: toCode, src: text, tgt: "", state: "pending", compose: mode === "compose" };
-  segments.push(seg);
-  renderCard(seg);
-  translate(seg);
+    from, to, src: text, tgt: "", state: "pending", compose: mode === "compose" };
+  segments.push(seg); renderCard(seg); translate(seg);
 }
 
 async function streamSSE(url, payload, onDelta) {
@@ -447,137 +577,6 @@ async function streamSSE(url, payload, onDelta) {
   }
 }
 
-function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("on"), 2200); }
-
-// ---------- Video assistant (camera + question -> Claude vision) ----------
-const frames = {}; // seg.id -> full-size frame (kept in memory only, for retry)
-let camStream = null, facing = store.get("facing", "environment");
-async function startCamera() {
-  if (!navigator.mediaDevices?.getUserMedia) { showWarn("這個瀏覽器不能使用鏡頭。iPhone 請用 Safari，並確認網址是 https://。"); return false; }
-  stopCamera();
-  try {
-    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facing }, width: { ideal: 1280 } }, audio: false });
-  } catch (e) {
-    showWarn("無法開啟鏡頭：" + (e.name === "NotAllowedError" ? "請在瀏覽器允許使用相機。" : e.message));
-    return false;
-  }
-  clearStill();
-  const v = $("cam"); v.style.display = ""; v.srcObject = camStream; v.style.transform = facing === "user" ? "scaleX(-1)" : "";
-  await v.play().catch(() => {});
-  $("camOff").style.display = "none"; $("camBtn").textContent = "⏹ 關閉鏡頭";
-  return true;
-}
-function stopCamera() {
-  if (camStream) camStream.getTracks().forEach(t => t.stop());
-  camStream = null; $("cam").srcObject = null;
-  $("camOff").style.display = stillImage ? "none" : ""; $("camBtn").textContent = "📷 開啟鏡頭";
-}
-
-// ---- uploaded picture: used instead of the camera until the camera is opened again
-let stillImage = null; // { full, thumb } data URLs
-function clearStill() { stillImage = null; $("still").style.display = "none"; $("still").removeAttribute("src"); }
-function scaleImage(src, maxSide, q) {
-  const k = Math.min(1, maxSide / Math.max(src.naturalWidth || src.videoWidth, src.naturalHeight || src.videoHeight));
-  const w = src.naturalWidth || src.videoWidth, h = src.naturalHeight || src.videoHeight;
-  const c = document.createElement("canvas"); c.width = Math.round(w * k); c.height = Math.round(h * k);
-  c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
-  return c.toDataURL("image/jpeg", q);
-}
-$("uploadBtn").onclick = () => { unlockTts(); $("imgFile").click(); };
-$("imgFile").onchange = async () => {
-  const file = $("imgFile").files[0]; $("imgFile").value = "";
-  if (!file) return;
-  const url = URL.createObjectURL(file);
-  try {
-    const img = new Image(); img.src = url; await img.decode();
-    // documents and menus need detail: keep up to 1568px (the model's sweet spot) for uploads
-    stillImage = { full: scaleImage(img, 1568, 0.82), thumb: scaleImage(img, 192, 0.6) };
-  } catch { showWarn("這張圖片打不開，請換一張（JPG、PNG 或手機照片）。"); return; }
-  finally { URL.revokeObjectURL(url); }
-  stopCamera(); $("cam").style.display = "none";
-  $("still").src = stillImage.full; $("still").style.display = ""; $("camOff").style.display = "none";
-  const q = $("textIn").value.trim(); $("textIn").value = "";
-  askVision(q); // describe + translate right away (or answer the question typed beforehand)
-};
-$("camBtn").onclick = () => camStream ? stopCamera() : startCamera();
-$("camFlip").onclick = () => { facing = facing === "user" ? "environment" : "user"; store.set("facing", facing); if (camStream) startCamera(); };
-
-// grab what the AI should look at: the uploaded picture, or the current camera frame
-// (full: max 1024px for the AI; thumb: small, for the card)
-function grabFrame() {
-  if (!camStream && stillImage) return stillImage;
-  const v = $("cam"); if (!camStream || !v.videoWidth) return null;
-  return { full: scaleImage(v, 1024, 0.72), thumb: scaleImage(v, 192, 0.6) };
-}
-function camState(text) { const el = $("camState"); el.textContent = text; el.style.display = text ? "block" : "none"; }
-
-// iOS only lets a page speak after a user gesture: on the first tap, speak a silent utterance
-let ttsUnlocked = false;
-function unlockTts() {
-  if (ttsUnlocked || !("speechSynthesis" in window)) return;
-  ttsUnlocked = true;
-  try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); } catch {}
-}
-$("voiceReply").checked = store.get("voiceReply", true);
-$("voiceReply").onchange = () => { store.set("voiceReply", $("voiceReply").checked); if (!$("voiceReply").checked) window.speechSynthesis?.cancel(); };
-
-async function askVision(question) {
-  if (!camStream && !stillImage && !(await startCamera())) return;
-  if (!$("cam").videoWidth) await new Promise(r => setTimeout(r, 400));
-  const f = grabFrame(); if (!f) { showWarn("鏡頭還沒準備好，請再按一次。"); return; }
-  const lang = $("srcLang").value;
-  if (!segments.length) { sessionStart = Date.now(); store.set("sessionStart", sessionStart); }
-  const seg = { id: Date.now() + Math.random(), t: Date.now(), kind: "vision", speaker: null, from: lang, to: lang,
-    src: question || "（看一下畫面）", q: question, tgt: "", state: "pending", thumb: f.thumb };
-  frames[seg.id] = f.full;
-  segments.push(seg); renderCard(seg); runVision(seg);
-}
-async function runVision(seg) {
-  const full = frames[seg.id];
-  if (!full) { seg.state = "error"; seg.err = "畫面已不在（重新整理過頁面），請重新拍一次。"; updateCard(seg); return; }
-  const history = segments.filter(s => s.kind === "vision" && s.state === "done" && s !== seg).slice(-4).map(s => ({ question: s.q || "", answer: s.tgt }));
-  seg.tgt = ""; seg.state = "pending"; updateCard(seg); camState("🤔 AI 思考中…");
-  const voice = $("voiceReply").checked;
-  if (voice) { window.speechSynthesis?.cancel(); ttsQueue.length = 0; speaking = false; }
-  let spoken = 0;
-  const speakFinished = (final) => { // queue every complete sentence as soon as it arrives
-    if (!voice) return;
-    const rest = seg.tgt.slice(spoken);
-    const m = final ? rest.length : Math.max(...["。", "！", "？", ".", "!", "?", "\n"].map(p => rest.lastIndexOf(p))) + 1;
-    if (m > 0 && rest.slice(0, m).trim()) { speak(rest.slice(0, m).trim(), seg.to); spoken += m; }
-  };
-  try {
-    await streamSSE("/api/vision", { image: full.split(",")[1], media_type: "image/jpeg", question: seg.q || "",
-      answer_lang: langName(seg.to), history }, (t) => { seg.tgt += t; updateCard(seg); speakFinished(false); });
-    seg.state = "done";
-    speakFinished(true);
-  } catch (e) { seg.state = "error"; seg.err = "回答失敗：" + e.message; }
-  camState(""); updateCard(seg); persist();
-}
-
-// one spoken question per tap: listen until the sentence ends, then snap the frame and ask
-let askRec = null;
-function stopAsk() { if (askRec) { const r = askRec; askRec = null; try { r.abort(); } catch {} } $("askBtn").className = "big primary"; $("askBtn").textContent = "🎙 按一下，開口問"; $("interim").textContent = ""; }
-$("askBtn").onclick = async () => {
-  unlockTts(); window.speechSynthesis?.cancel();
-  if (askRec) { stopAsk(); return; }
-  if (!SR) { showWarn("此瀏覽器不支援語音辨識，請在右邊輸入框打字問。"); return; }
-  if (!camStream && !stillImage && !(await startCamera())) return;
-  const r = new SR(); askRec = r;
-  r.lang = $("srcLang").value; r.continuous = false; r.interimResults = true; r.maxAlternatives = 1;
-  let finalText = "", latest = "";
-  r.onresult = (ev) => {
-    latest = Array.from(ev.results).map(x => x[0].transcript).join("");
-    if (ev.results[ev.results.length - 1].isFinal) finalText = latest;
-    $("interim").textContent = latest;
-  };
-  r.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") showWarn("麥克風權限被拒絕，請在瀏覽器網址列允許麥克風。"); };
-  r.onend = () => { const q = (finalText || latest).trim(); const mine = askRec === r; stopAsk(); if (mine && q) askVision(q); };
-  $("askBtn").className = "big rec"; $("askBtn").textContent = "■ 聆聽中…（說完會自動送出）";
-  try { r.start(); } catch { stopAsk(); }
-};
-$("lookBtn").onclick = () => { unlockTts(); window.speechSynthesis?.cancel(); askVision(""); };
-
 async function translate(seg) {
   if (seg.kind === "vision") return runVision(seg);
   const context = segments.filter(s => s.state === "done" && s !== seg && s.kind !== "vision").slice(-6).map(s => ({ source: s.src, translation: s.tgt }));
@@ -591,42 +590,53 @@ async function translate(seg) {
   updateCard(seg); persist();
   if (seg.state === "done" && seg.tgt && $("tts").checked) speak(seg.tgt, seg.to);
   if (seg.state === "done" && seg.compose && navigator.clipboard) {
-    navigator.clipboard.writeText(seg.tgt).then(() => toast("✓ 已複製譯文，直接貼到聊天或貼文即可"), () => {});
+    navigator.clipboard.writeText(seg.tgt).then(() => toast("✓ 已複製，到聊天軟體貼上就好"), () => {});
   }
 }
-
 function persist() { store.set("segments", segments.slice(-300).map(({ err, thumb, ...s }) => s)); }
 
+function renderFeed() {
+  const feed = $("feed"); feed.innerHTML = "";
+  const mine = segments.filter(visible);
+  if (!mine.length && MODES[mode]) {
+    const [a, b] = MODES[mode].empty;
+    feed.innerHTML = `<div class="empty" id="empty"><b>${a}</b>${b}</div>`;
+  }
+  for (const s of mine) renderCard(s);
+  show("camAnswer", false);
+}
+
 function renderCard(seg) {
+  if (!visible(seg)) return;
   $("empty")?.remove();
   const el = document.createElement("div");
   el.className = "card" + (seg.speaker ? " " + seg.speaker : ""); el.id = "c" + seg.id;
-  el.innerHTML = `<div class="meta"><span class="who"></span><span class="time"></span>
-    <span class="acts"><button data-a="speak" title="朗讀">🔊</button><button data-a="copy" title="複製">⧉</button><button data-a="explain" title="解釋俚語 / 語氣">📖</button><button data-a="share" title="分享">📤</button><button data-a="retry" title="重新翻譯">↻</button></span></div>
-    <div class="src"></div><div class="tgt"></div><div class="explain" style="display:none"></div>`;
-  el.querySelector(".who").textContent = seg.kind === "vision" ? "📹 視訊助手"
-    : (seg.speaker ? seg.speaker + " · " : "") + (seg.from === "auto" ? "自動偵測" : langLabel(seg.from)) + " → " + langLabel(seg.to);
-  if (seg.kind === "vision") {
-    el.querySelector('[data-a="explain"]').remove();
-    el.querySelector('[data-a="retry"]').title = "重新回答";
-    if (seg.thumb) { const im = document.createElement("img"); im.className = "thumb"; im.src = seg.thumb; im.alt = "當時的畫面"; el.querySelector(".src").before(im); }
-  }
-  el.querySelector(".time").textContent = new Date(seg.t).toLocaleTimeString();
-  el.querySelector(".src").textContent = seg.src;
-  el.querySelector(".src").style.display = $("showSrc").checked ? "" : "none";
-  el.querySelector('[data-a="speak"]').onclick = () => speak(seg.tgt, seg.to, true);
-  el.querySelector('[data-a="copy"]').onclick = () => navigator.clipboard?.writeText(seg.tgt).then(() => toast("✓ 已複製"));
-  el.querySelector('[data-a="share"]').onclick = () => navigator.share
-    ? navigator.share({ text: seg.tgt }).catch(() => {})
-    : navigator.clipboard?.writeText(seg.tgt).then(() => toast("✓ 已複製（此瀏覽器不支援分享）"));
-  el.querySelector('[data-a="explain"]')?.addEventListener("click", () => explain(seg, el.querySelector(".explain")));
-  el.querySelector('[data-a="retry"]').onclick = () => translate(seg);
+  el.innerHTML = `<div class="meta"><span class="who"></span><span class="time"></span></div>
+    <div class="src"></div><div class="tgt"></div><div class="explain" hidden></div><div class="acts"></div>`;
+  const who = seg.kind === "vision" ? "📹 AI 回答" : seg.speaker === "A" ? "你說" : seg.speaker === "B" ? "對方說" : "";
+  el.querySelector(".who").textContent = who ? `${who} · ` + (seg.kind === "vision" ? "" : `${langLabel(seg.from)} → ${langLabel(seg.to)}`) : `${langLabel(seg.from)} → ${langLabel(seg.to)}`;
+  el.querySelector(".time").textContent = new Date(seg.t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  el.querySelector(".src").textContent = seg.kind === "vision" ? "問：" + seg.src : seg.src;
+  show(el.querySelector(".src"), seg.kind === "vision" || $("showSrc").checked);
+  if (seg.thumb) { const im = document.createElement("img"); im.className = "thumb"; im.src = seg.thumb; im.alt = "當時的畫面"; el.querySelector(".src").before(im); }
   $("feed").prepend(el); // newest on top
   updateCard(seg);
 }
+
+function cardActions(seg, el) {
+  const acts = el.querySelector(".acts"); acts.innerHTML = "";
+  const add = (label, fn) => { const b = document.createElement("button"); b.textContent = label; b.onclick = fn; acts.append(b); };
+  if (seg.state === "pending") return;
+  if (seg.state === "error") { add("↻ 重試", () => translate(seg)); return; }
+  add("🔊 唸一次", () => { unlockTts(); speak(seg.tgt, seg.to, true); });
+  add("⧉ 複製", () => navigator.clipboard?.writeText(seg.tgt).then(() => toast("✓ 已複製")));
+  add("📤 分享", () => navigator.share ? navigator.share({ text: seg.tgt }).catch(() => {}) : navigator.clipboard?.writeText(seg.tgt).then(() => toast("✓ 已複製")));
+  if (seg.kind !== "vision") add("📖 解釋", () => explain(seg, el.querySelector(".explain")));
+}
+
 async function explain(seg, box) {
-  if (box.style.display !== "none" && box.dataset.done) { box.style.display = "none"; return; }
-  box.style.display = ""; box.textContent = ""; box.classList.add("caret"); delete box.dataset.done;
+  if (!box.hidden && box.dataset.done) { box.hidden = true; return; }
+  box.hidden = false; box.textContent = ""; box.classList.add("caret"); delete box.dataset.done;
   try {
     await streamSSE("/api/explain", { text: seg.src, translation: seg.tgt, target_lang: langName(seg.to),
       explain_lang: langName($("srcLang").value) }, (t) => { box.textContent += t; });
@@ -636,23 +646,29 @@ async function explain(seg, box) {
 }
 
 function updateCard(seg) {
-  const el = $("c" + seg.id); if (!el) return;
-  const tgt = el.querySelector(".tgt");
-  tgt.className = "tgt" + (seg.state === "pending" ? " caret" : "") + (seg.state === "error" ? " err" : "");
-  tgt.textContent = seg.state === "error" ? (seg.err || "錯誤") : seg.tgt;
-  if (seg === segments[segments.length - 1]) $("feed").scrollTop = 0; // keep the newest sentence in view
-  if (seg.kind === "vision" && seg === segments[segments.length - 1]) { // latest answer over the camera view
-    $("camAnswer").style.display = "block";
+  const el = $("c" + seg.id);
+  const newest = seg === segments[segments.length - 1];
+  if (el) {
+    const tgt = el.querySelector(".tgt");
+    tgt.className = "tgt" + (seg.state === "pending" ? " caret" : "") + (seg.state === "error" ? " err" : "");
+    tgt.textContent = seg.state === "error" ? (seg.err || "出錯了") : seg.tgt;
+    if (el.dataset.state !== seg.state) { el.dataset.state = seg.state; cardActions(seg, el); }
+  }
+  if (newest && seg.kind === "vision" && mode === "vision") { // latest answer over the camera view
+    show("camAnswer", true);
     $("camQ").textContent = "問：" + seg.src;
-    $("camA").textContent = seg.state === "error" ? (seg.err || "錯誤") : (seg.tgt || "…");
+    $("camA").textContent = seg.state === "error" ? (seg.err || "出錯了") : (seg.tgt || "…");
   }
-  if ($("caption").classList.contains("on") && seg === segments[segments.length - 1]) {
-    $("capSrc").textContent = seg.src; $("capTgt").textContent = seg.tgt || "…";
-  }
+  if (newest && $("caption").classList.contains("on")) { $("capSrc").textContent = seg.src; $("capTgt").textContent = seg.tgt || "…"; }
 }
 
-// ---------- Text-to-speech ----------
-let speaking = false;
+// ===================== text-to-speech =====================
+let speaking = false, ttsUnlocked = false;
+function unlockTts() { // iOS only lets a page speak after a tap: speak a silent utterance on the first one
+  if (ttsUnlocked || !("speechSynthesis" in window)) return;
+  ttsUnlocked = true;
+  try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); } catch {}
+}
 function speak(text, lang, now) {
   if (!("speechSynthesis" in window) || !text) return;
   if (now) { speechSynthesis.cancel(); ttsQueue.length = 0; speaking = false; }
@@ -662,62 +678,178 @@ function nextTts() {
   const item = ttsQueue.shift(); if (!item) { speaking = false; return; }
   speaking = true;
   const u = new SpeechSynthesisUtterance(item[0]); u.lang = item[1];
-  const voice = speechSynthesis.getVoices().find(v => v.lang === item[1]) || speechSynthesis.getVoices().find(v => v.lang.startsWith(item[1].split("-")[0]));
+  const voices = speechSynthesis.getVoices();
+  const voice = voices.find(v => v.lang === item[1]) || voices.find(v => v.lang.startsWith(item[1].split("-")[0]));
   if (voice) u.voice = voice;
   u.onend = u.onerror = nextTts;
   speechSynthesis.speak(u);
 }
 
-// ---------- Text mode ----------
+// ===================== typing (打字翻譯 / 寫訊息 / 打字問 AI) =====================
 function sendText() {
-  const t = $("textIn").value.trim(); if (!t) return; $("textIn").value = "";
-  if (mode === "vision") { unlockTts(); askVision(t); } else addSegment(t, "A");
+  const t = $("textIn").value.trim(); if (!t) return; $("textIn").value = ""; $("textIn").blur();
+  unlockTts();
+  if (mode === "vision") askVision(t); else addSegment(t, "A");
 }
 $("sendText").onclick = sendText;
 $("textIn").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendText(); } };
+$("textIn").oninput = () => { const t = $("textIn"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 140) + "px"; };
+$("typeBtn").onclick = () => { const on = $("dTyping").hidden; show("dTyping", on); fitDock(); if (on) $("textIn").focus(); };
 
-// ---------- Caption mode ----------
+// ===================== 拍給 AI 看 (camera / photo + question -> Claude vision) =====================
+const frames = {};
+let camStream = null, facing = store.get("facing", "environment"), stillImage = null;
+async function startCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) { showWarn("這個瀏覽器不能開鏡頭。iPhone 請用 Safari，網址要是 https:// 開頭。"); return false; }
+  stopCamera();
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facing }, width: { ideal: 1280 } }, audio: false });
+  } catch (e) {
+    showWarn(e.name === "NotAllowedError" ? "相機被擋住了：請在瀏覽器允許使用相機。" : "鏡頭打不開：" + e.message);
+    return false;
+  }
+  clearStill();
+  const v = $("cam"); show(v, true); v.srcObject = camStream; v.style.transform = facing === "user" ? "scaleX(-1)" : "";
+  await v.play().catch(() => {});
+  show("camOff", false); $("camBtn").textContent = "⏹ 關鏡頭";
+  return true;
+}
+function stopCamera() {
+  if (camStream) camStream.getTracks().forEach(t => t.stop());
+  camStream = null; $("cam").srcObject = null;
+  show("camOff", !stillImage); $("camBtn").textContent = "📷 開鏡頭";
+}
+function clearStill() { stillImage = null; show("still", false); $("still").removeAttribute("src"); }
+$("camBtn").onclick = () => camStream ? stopCamera() : startCamera();
+$("camFlip").onclick = () => { facing = facing === "user" ? "environment" : "user"; store.set("facing", facing); if (camStream) startCamera(); };
+function camState(text) { $("camState").textContent = text; show("camState", !!text); }
+
+function scaleImage(src, maxSide, q) {
+  const w = src.naturalWidth || src.videoWidth, h = src.naturalHeight || src.videoHeight;
+  const k = Math.min(1, maxSide / Math.max(w, h));
+  const c = document.createElement("canvas"); c.width = Math.round(w * k); c.height = Math.round(h * k);
+  c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", q);
+}
+function grabFrame() { // the uploaded photo, or the current camera frame
+  if (!camStream && stillImage) return stillImage;
+  const v = $("cam"); if (!camStream || !v.videoWidth) return null;
+  return { full: scaleImage(v, 1024, 0.72), thumb: scaleImage(v, 192, 0.6) };
+}
+
+$("uploadBtn").onclick = () => { unlockTts(); $("imgFile").click(); };
+$("imgFile").onchange = async () => {
+  const file = $("imgFile").files[0]; $("imgFile").value = "";
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    stillImage = { full: scaleImage(img, 1568, 0.82), thumb: scaleImage(img, 192, 0.6) }; // menus/documents need detail
+  } catch { showWarn("這張照片打不開，請換一張。"); return; }
+  finally { URL.revokeObjectURL(url); }
+  stopCamera(); show("cam", false);
+  $("still").src = stillImage.full; show("still", true); show("camOff", false);
+  const q = $("textIn").value.trim(); $("textIn").value = "";
+  askVision(q);
+};
+
+async function askVision(question) {
+  if (!camStream && !stillImage && !(await startCamera())) return;
+  if (camStream && !$("cam").videoWidth) await new Promise(r => setTimeout(r, 400));
+  const f = grabFrame(); if (!f) { showWarn("鏡頭還沒準備好，請再按一次。"); return; }
+  const lang = $("srcLang").value;
+  const seg = { id: Date.now() + Math.random(), t: Date.now(), kind: "vision", speaker: null, from: lang, to: lang,
+    src: question || "（請看一下畫面）", q: question, tgt: "", state: "pending", thumb: f.thumb };
+  frames[seg.id] = f.full;
+  segments.push(seg); renderCard(seg); runVision(seg);
+}
+async function runVision(seg) {
+  const full = frames[seg.id];
+  if (!full) { seg.state = "error"; seg.err = "這張畫面已經不在了，請重新拍一次。"; updateCard(seg); return; }
+  const history = segments.filter(s => s.kind === "vision" && s.state === "done" && s !== seg).slice(-4).map(s => ({ question: s.q || "", answer: s.tgt }));
+  seg.tgt = ""; seg.state = "pending"; updateCard(seg); camState("🤔 AI 正在看…");
+  const voice = $("voiceReply").checked;
+  if (voice) { window.speechSynthesis?.cancel(); ttsQueue.length = 0; speaking = false; }
+  let spoken = 0;
+  const speakFinished = (final) => { // read each finished sentence aloud right away
+    if (!voice) return;
+    const rest = seg.tgt.slice(spoken);
+    const m = final ? rest.length : Math.max(...["。", "！", "？", ".", "!", "?", "\n"].map(p => rest.lastIndexOf(p))) + 1;
+    if (m > 0 && rest.slice(0, m).trim()) { speak(rest.slice(0, m).trim(), seg.to); spoken += m; }
+  };
+  try {
+    await streamSSE("/api/vision", { image: full.split(",")[1], media_type: "image/jpeg", question: seg.q || "",
+      answer_lang: langName(seg.to), history }, (t) => { seg.tgt += t; updateCard(seg); speakFinished(false); });
+    seg.state = "done"; speakFinished(true);
+  } catch (e) { seg.state = "error"; seg.err = "回答失敗：" + e.message; }
+  camState(""); updateCard(seg); persist();
+}
+
+// one spoken question per tap
+let askRec = null;
+function stopAsk() {
+  if (askRec) { const r = askRec; askRec = null; try { r.abort(); } catch {} }
+  $("askBtn").className = "big"; $("askBtn").textContent = "🎙 按一下，開口問"; setInterim("");
+}
+$("askBtn").onclick = async () => {
+  unlockTts(); window.speechSynthesis?.cancel();
+  if (askRec) { stopAsk(); return; }
+  if (!SR) { showWarn("這個瀏覽器不能語音辨識，請按「打字問」。"); return; }
+  if (!camStream && !stillImage && !(await startCamera())) return;
+  const r = new SR(); askRec = r;
+  r.lang = $("srcLang").value; r.continuous = false; r.interimResults = true; r.maxAlternatives = 1;
+  let finalText = "", latest = "";
+  r.onresult = (ev) => {
+    latest = Array.from(ev.results).map(x => x[0].transcript).join("");
+    if (ev.results[ev.results.length - 1].isFinal) finalText = latest;
+    setInterim(latest);
+  };
+  r.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") showWarn("麥克風被擋住了：請在瀏覽器允許使用麥克風。"); };
+  r.onend = () => { const q = (finalText || latest).trim(); const mine = askRec === r; stopAsk(); if (mine && q) askVision(q); };
+  $("askBtn").className = "big rec"; $("askBtn").textContent = "■ 正在聽…說完會自動送出";
+  try { r.start(); } catch { stopAsk(); }
+};
+$("lookBtn").onclick = () => { unlockTts(); window.speechSynthesis?.cancel(); askVision(""); };
+
+// ===================== fullscreen captions =====================
 let capSize = store.get("capSize", 6);
 document.documentElement.style.setProperty("--cap", capSize + "vh");
 $("captionBtn").onclick = () => { $("caption").classList.add("on"); document.documentElement.requestFullscreen?.().catch(() => {});
-  const last = segments[segments.length - 1]; if (last) { $("capSrc").textContent = last.src; $("capTgt").textContent = last.tgt; } };
+  const last = segments.filter(visible).at(-1); if (last) { $("capSrc").textContent = last.src; $("capTgt").textContent = last.tgt; } };
 function closeCaption() { $("caption").classList.remove("on"); if (document.fullscreenElement) document.exitFullscreen(); }
 $("capClose").onclick = closeCaption;
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeCaption(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeCaption(); closeSheet(); } });
 for (const [id, d] of [["capMinus", -1], ["capPlus", 1]]) $(id).onclick = () => {
   capSize = Math.max(3, Math.min(14, capSize + d)); store.set("capSize", capSize);
   document.documentElement.style.setProperty("--cap", capSize + "vh");
 };
 
-// ---------- Export / clear ----------
+// ===================== export / clear =====================
 function download(name, text) {
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
   a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 const stamp = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
-$("exportTxt").onclick = () => download(`translation-${stamp()}.txt`, segments.map(s =>
+$("exportTxt").onclick = () => download(`muoitu-${stamp()}.txt`, segments.map(s =>
   `[${new Date(s.t).toLocaleTimeString()}]${s.speaker ? " " + s.speaker : ""}\n${s.src}\n${s.tgt}\n`).join("\n"));
 $("exportSrt").onclick = () => {
   const fmt = (ms) => { ms = Math.max(0, ms); const h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60;
     return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")},${String(ms % 1000).padStart(3,"0")}`; };
-  const t0 = segments[0]?.t || 0;
-  download(`subtitles-${stamp()}.srt`, segments.map((s, i) => {
-    const start = s.t - t0, end = (segments[i + 1] ? segments[i + 1].t - t0 : start + 4000);
+  const subs = segments.filter(s => s.kind !== "vision"); const t0 = subs[0]?.t || 0;
+  download(`muoitu-${stamp()}.srt`, subs.map((s, i) => {
+    const start = s.t - t0, end = (subs[i + 1] ? subs[i + 1].t - t0 : start + 4000);
     return `${i + 1}\n${fmt(start)} --> ${fmt(Math.max(end - 100, start + 800))}\n${s.tgt}\n`;
   }).join("\n"));
 };
-$("clearBtn").onclick = () => { if (!confirm("清除所有逐字稿？")) return; segments.length = 0; persist();
-  $("feed").innerHTML = '<div class="empty" id="empty">已清除。</div>'; };
+$("clearBtn").onclick = () => { if (!confirm("確定要清除所有紀錄嗎？")) return; segments.length = 0; persist(); renderFeed(); closeSheet(); toast("已清除"); };
 
-// ---------- Installable app (PWA) ----------
+// ===================== installable app (PWA) =====================
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 let installEvt = null;
-window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; $("installBtn").style.display = ""; });
-$("installBtn").onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; $("installBtn").style.display = "none"; };
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; show("installItem", true); });
+$("installBtn").onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; show("installItem", false); };
 
-// ---------- Init ----------
-setMode(mode);
-for (const s of segments) { if (s.state === "pending") s.state = "error", s.err = "（已中斷，按 ↻ 重新翻譯）"; renderCard(s); }
+route();
 </script>
 </body>
 </html>
