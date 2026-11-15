@@ -182,6 +182,52 @@ def delete(code: str) -> bool:
         return cur.rowcount > 0
 
 
+def parse_spec(spec: str) -> list[tuple[str, str, int]]:
+    """Parse "Mama:TUMUOI-1954, 阿明:TUMUOI-2024:200" (or one entry per line) into (name, code, limit)."""
+    out = []
+    for raw in spec.replace("\n", ",").split(","):
+        item = raw.strip()
+        if not item:
+            continue
+        parts = [p.strip() for p in item.split(":")]
+        if len(parts) not in (2, 3) or not parts[0] or not parts[1]:
+            raise ValueError(f"格式不對：「{item}」，應該是 名字:邀請碼 或 名字:邀請碼:每日上限")
+        try:
+            limit = int(parts[2]) if len(parts) == 3 and parts[2] else 0
+        except ValueError:
+            raise ValueError(f"「{item}」的每日上限要是數字（0 = 不限）") from None
+        code = normalize(parts[1])
+        if not (4 <= len(code) <= 32) or not all(ch.isalnum() or ch == "-" for ch in code):
+            raise ValueError(f"邀請碼「{parts[1]}」只能用英文字母、數字和「-」，長度 4–32 個字。")
+        out.append((parts[0], code, limit))
+    return out
+
+
+def sync_from_env(spec: str) -> list[tuple[str, str, int]]:
+    """Make the database match an invite list kept in an environment variable (used on Railway).
+
+    Listed codes are created or updated and enabled; codes not in the list are disabled
+    (not deleted, so their usage history is kept).
+    """
+    entries = parse_spec(spec)
+    now = datetime.now().isoformat(timespec="seconds")
+    with _lock:
+        conn = db()
+        for name, code, limit in entries:
+            conn.execute(
+                """INSERT INTO invites (code, name, active, daily_limit, created_at) VALUES (?, ?, 1, ?, ?)
+                   ON CONFLICT(code) DO UPDATE SET name = excluded.name, active = 1, daily_limit = excluded.daily_limit""",
+                (code, name, limit, now),
+            )
+        listed = [c for _, c, _ in entries]
+        if listed:
+            conn.execute(f"UPDATE invites SET active = 0 WHERE code NOT IN ({','.join('?' * len(listed))})", listed)
+        else:
+            conn.execute("UPDATE invites SET active = 0")
+        conn.commit()
+    return entries
+
+
 def any_codes() -> bool:
     with _lock:
         return db().execute("SELECT 1 FROM invites LIMIT 1").fetchone() is not None

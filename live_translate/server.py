@@ -16,14 +16,16 @@ to turn the check off (e.g. for purely local use).
 
 from __future__ import annotations
 
+import html
 import json
 import os
+import secrets
 from pathlib import Path
 from typing import Callable, Iterator
 
 import anthropic
 from fastapi import FastAPI, Header
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -228,6 +230,38 @@ def health(x_invite_code: str | None = Header(default=None)):
     return JSONResponse(body)
 
 
+ADMIN_TOKEN = os.environ.get("LIVE_TRANSLATE_ADMIN_TOKEN", "")
+
+
+@app.get("/admin")
+def admin(token: str = ""):
+    """Usage per invite code, for hosts without a terminal (e.g. Railway). Open /admin?token=..."""
+    if not ADMIN_TOKEN:
+        return HTMLResponse("管理頁未啟用：請設定 LIVE_TRANSLATE_ADMIN_TOKEN。", status_code=404)
+    if not secrets.compare_digest(token.encode(), ADMIN_TOKEN.encode()):
+        return HTMLResponse("密碼不正確。", status_code=403)
+    rows = invites.report()
+    total = sum(r["cost_usd"] for r in rows)
+    trs = "".join(
+        f"<tr><td><code>{html.escape(r['code'])}</code></td><td>{html.escape(r['name'])}</td>"
+        f"<td>{'啟用' if r['active'] else '停用'}</td><td>{r['today_requests']} / {r['daily_limit'] or '∞'}</td>"
+        f"<td>{r['total_requests']}</td><td>${r['cost_usd']:.4f}</td></tr>"
+        for r in rows
+    )
+    page = f"""<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>Muối Từ 用量</title><style>
+body{{font:15px/1.5 system-ui,sans-serif;margin:0;padding:16px;background:#f6f7fb;color:#1b1f2a}}
+h1{{font-size:18px}} .wrap{{overflow-x:auto}} table{{border-collapse:collapse;background:#fff;min-width:520px;width:100%}}
+th,td{{padding:8px 10px;border-bottom:1px solid #e3e6ee;text-align:left;white-space:nowrap}} th{{color:#6b7385;font-weight:600}}
+.sum{{margin-top:12px;color:#047857;font-weight:600}} .note{{color:#6b7385;font-size:13px}}
+</style></head><body><h1>Muối Từ · 邀請碼用量</h1>
+<div class="wrap"><table><tr><th>邀請碼</th><th>名字</th><th>狀態</th><th>今日 / 上限</th><th>累計次數</th><th>估計費用</th></tr>{trs}</table></div>
+<div class="sum">全部估計費用：${total:.4f}</div>
+<p class="note">模型：{html.escape(MODEL)}。實際帳單以 Anthropic Console 為準。</p></body></html>"""
+    return HTMLResponse(page)
+
+
 @app.get("/")
 def index():
     return FileResponse(STATIC_DIR / "index.html")
@@ -250,6 +284,10 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 def main() -> None:
     import uvicorn
 
+    spec = os.environ.get("LIVE_TRANSLATE_INVITES", "").strip()
+    if spec:
+        entries = invites.sync_from_env(spec)
+        print(f"已從 LIVE_TRANSLATE_INVITES 載入 {len(entries)} 個邀請碼：" + "、".join(n for n, _, _ in entries))
     if REQUIRE_INVITE and not invites.any_codes():
         print('提醒：還沒有任何邀請碼，所有翻譯都會被拒絕。先執行：./live_translate/invite.sh add "名字"（或 python3 -m live_translate.invites add "名字"）')
     host = os.environ.get("HOST", "127.0.0.1")

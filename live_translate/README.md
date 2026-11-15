@@ -29,6 +29,10 @@
 句子 + 譯文 → POST /api/explain → Claude → 俚語 / 語氣解釋
 ```
 
+## 部署到 Railway（24 小時在線、固定網址）
+
+請看 [RAILWAY.md](RAILWAY.md)。邀請碼在 Railway 的 Variables 用 `LIVE_TRANSLATE_INVITES=Mama:TUMUOI-1954, 阿明:TUMUOI-2024:200` 管理，用量在 `/admin?token=管理密碼` 查看。
+
 ## Mac 快速開始（最簡單）
 
 在「終端機」裡執行（一行一行貼上，**不要貼 `#` 後面的說明文字**）：
@@ -85,6 +89,8 @@ python3 -m live_translate.invites delete  MT-XXXX-XXXX          # 刪除
 | `HOST` / `PORT` | `127.0.0.1` / `8765` | 伺服器位址 |
 | `LIVE_TRANSLATE_REQUIRE_INVITE` | `1` | `0` = 不檢查邀請碼 |
 | `LIVE_TRANSLATE_DB` | `live_translate/data/invites.db` | 邀請碼資料庫位置 |
+| `LIVE_TRANSLATE_INVITES` | — | 用變數管理邀請碼：`名字:碼[:每日上限]`，逗號分隔；沒列出的碼會停用 |
+| `LIVE_TRANSLATE_ADMIN_TOKEN` | — | 設定後可開 `/admin?token=…` 看用量 |
 | `LIVE_TRANSLATE_PRICE_IN` / `_OUT` | 依模型自動 | 估計費用用的單價（美元 / 百萬 token） |
 
 > 麥克風需要 HTTPS 或 `localhost`。要讓手機在區網使用，請放在 HTTPS 反向代理之後。
