@@ -16,12 +16,14 @@ to turn the check off (e.g. for purely local use).
 
 from __future__ import annotations
 
+import base64
+import binascii
 import html
 import json
 import os
 import secrets
 from pathlib import Path
-from typing import Callable, Iterator
+from typing import Any, Callable, Iterator, Literal
 
 import anthropic
 from fastapi import FastAPI, Header
@@ -77,6 +79,23 @@ Explain, in the requested explanation language, briefly and in plain text (no ma
 3. One or two alternative ways to say it in the target language, with when to use each.
 Keep it under 150 words. If there is nothing notable, say so in one sentence and give the alternatives."""
 
+VISION_PROMPT = """You are the live video assistant inside Muối Từ, a translation app.
+The user is pointing their phone camera at something and asking for help. You get the
+current camera frame plus their question (transcribed from speech, so it may contain
+recognition errors) and, sometimes, the last few questions and answers.
+
+How to answer:
+- Reply in the answer language given in the message, the user's own language.
+- Your reply is read aloud: keep it short and practical, 1-4 sentences, plain text,
+  no markdown. Use a short numbered sequence only when the user needs steps.
+- Base the answer on what is actually visible. If something you need is blurry, cut off
+  or too dark, say so and tell them how to adjust the camera.
+- If relevant text in another language is in view, translate it.
+- With no question, say what matters in the scene and translate any visible foreign text.
+- Medicine, electricity, gas and similar risks: give the practical answer, add a one-line
+  caution when there is real risk, and never guess a dosage you cannot read clearly;
+  tell them to check with a pharmacist or doctor instead."""
+
 app = FastAPI(title="Muối Từ · Phiên Dịch AI")
 _client: anthropic.Anthropic | None = None
 
@@ -100,6 +119,19 @@ class TranslateRequest(BaseModel):
     context: list[ContextPair] = Field(default_factory=list, max_length=10)
     glossary: str = Field("", max_length=4000)
     style: str = "natural"
+
+
+class VisionTurn(BaseModel):
+    question: str = Field("", max_length=2000)
+    answer: str = Field("", max_length=4000)
+
+
+class VisionRequest(BaseModel):
+    image: str = Field(..., min_length=100, max_length=7_000_000)  # base64, no data: prefix
+    media_type: Literal["image/jpeg", "image/png", "image/webp"] = "image/jpeg"
+    question: str = Field("", max_length=2000)
+    answer_lang: str = "Traditional Chinese"
+    history: list[VisionTurn] = Field(default_factory=list, max_length=6)
 
 
 class ExplainRequest(BaseModel):
@@ -128,7 +160,7 @@ def sse(event: str, data: dict) -> str:
 
 
 def stream_claude(
-    system: str, user_message: str, on_usage: Callable[[int, int], None] | None = None
+    system: str, user_message: str | list[dict[str, Any]], on_usage: Callable[[int, int], None] | None = None
 ) -> Iterator[str]:
     tokens_in = tokens_out = 0
     try:
@@ -199,6 +231,31 @@ def translate(req: TranslateRequest, x_invite_code: str | None = Header(default=
     if denied:
         return denied
     return sse_response(stream_claude(SYSTEM_PROMPT, build_user_message(req), on_usage))
+
+
+@app.post("/api/vision")
+def vision(req: VisionRequest, x_invite_code: str | None = Header(default=None)):
+    denied, on_usage = gate(x_invite_code)
+    if denied:
+        return denied
+    try:
+        raw = base64.b64decode(req.image, validate=True)
+    except (binascii.Error, ValueError):
+        return JSONResponse({"error": "bad_image", "message": "畫面資料損壞，請再試一次。"}, status_code=400)
+    if len(raw) > 3_500_000:  # API limit is 5 MB per image; the app sends ~100-300 KB
+        return JSONResponse({"error": "image_too_large", "message": "畫面太大，請再試一次。"}, status_code=413)
+    parts = []
+    if req.history:
+        turns = "\n".join(f"Q: {t.question}\nA: {t.answer}" for t in req.history[-4:])
+        parts.append(f"<conversation_so_far>\n{turns}\n</conversation_so_far>")
+    parts.append(f"Answer language: {req.answer_lang}")
+    q = req.question.strip()
+    parts.append(f"<question>\n{q}\n</question>" if q else "No question: describe what matters and translate visible foreign text.")
+    content = [
+        {"type": "image", "source": {"type": "base64", "media_type": req.media_type, "data": req.image}},
+        {"type": "text", "text": "\n\n".join(parts)},
+    ]
+    return sse_response(stream_claude(VISION_PROMPT, content, on_usage))
 
 
 @app.post("/api/explain")

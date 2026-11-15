@@ -88,6 +88,19 @@
   .hint { font-size:12px; color:var(--muted); margin-top:8px; }
   .warn { background:#fff4e5; color:#8a4b00; border:1px solid #f5c27a; padding:10px 12px; border-radius:10px; font-size:13px; margin-bottom:10px; display:none; }
   @media (prefers-color-scheme: dark) { .warn { background:#2a1f10; color:#f5c27a; border-color:#6b4a14; } }
+  .seg { flex-wrap:wrap; }
+  .seg button { flex:1 1 30%; }
+  /* video assistant */
+  .cam { position:relative; margin-top:12px; border-radius:12px; overflow:hidden; background:#000; width:100%; height:min(56vh, 120vw); }
+  .cam .cam-answer { position:absolute; left:0; right:0; bottom:0; max-height:45%; overflow:auto; background:linear-gradient(transparent, rgba(0,0,0,.82) 18%); color:#fff; font-size:17px; line-height:1.45; padding:22px 14px 12px; display:none; white-space:pre-wrap; }
+  .cam .cam-answer .cam-q { color:#cbd5e1; font-size:13px; margin-bottom:4px; }
+  .cam video { width:100%; height:100%; object-fit:cover; display:block; }
+  .cam .cam-off { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#9aa1b2; font-size:14px; text-align:center; padding:16px; }
+  .cam .cam-state { position:absolute; left:10px; top:10px; background:rgba(0,0,0,.55); color:#fff; font-size:12px; padding:4px 8px; border-radius:8px; display:none; }
+  .cam-row { display:flex; gap:8px; margin-top:8px; }
+  .cam-row button { flex:1; }
+  .card .thumb { width:96px; height:72px; object-fit:cover; border-radius:8px; float:right; margin:0 0 6px 10px; }
+  .card::after { content:""; display:block; clear:both; }
   /* caption (subtitle) mode */
   #caption { position:fixed; inset:0; background:#000; color:#fff; display:none; flex-direction:column; justify-content:flex-end; padding:5vh 6vw; z-index:20; }
   #caption.on { display:flex; }
@@ -120,6 +133,7 @@
       <button data-mode="convo">💬 雙人對話</button>
       <button data-mode="text">⌨️ 文字</button>
       <button data-mode="compose">✍️ 社群</button>
+      <button data-mode="vision">📹 視訊助手</button>
     </div>
 
     <div class="row" style="margin-top:6px">
@@ -134,7 +148,7 @@
       </div>
     </div>
 
-    <label for="style">翻譯風格</label>
+    <label for="style" id="styleLabel">翻譯風格</label>
     <select id="style">
       <option value="natural">自然（忠實原意）</option>
       <option value="casual">輕鬆口語（像跟朋友聊天）</option>
@@ -152,6 +166,21 @@
         <button class="tb" id="talkB">B 說話</button>
       </div>
       <div class="hint">按一下開始，再按一下結束。A 使用來源語言，B 使用目標語言，翻譯互相對調。</div>
+    </div>
+    <div id="visionCtl" style="display:none">
+      <div class="cam">
+        <video id="cam" playsinline muted autoplay></video>
+        <div class="cam-off" id="camOff">按下「開啟鏡頭」，把鏡頭對準要問的東西</div>
+        <div class="cam-state" id="camState"></div>
+        <div class="cam-answer" id="camAnswer"><div class="cam-q" id="camQ"></div><div id="camA"></div></div>
+      </div>
+      <div class="cam-row">
+        <button id="camBtn">📷 開啟鏡頭</button>
+        <button id="camFlip" title="切換前後鏡頭">🔄 前 / 後</button>
+      </div>
+      <button class="big primary" id="askBtn">🎙 按一下，開口問</button>
+      <button id="lookBtn" style="width:100%;margin-top:8px">👀 看一下畫面（不用說話）</button>
+      <div class="hint">AI 會看鏡頭畫面＋聽你的問題，用「我的語言」回答並唸出來。也可以在右邊輸入框打字問。</div>
     </div>
 
     <label class="check"><input type="checkbox" id="tts"> 自動朗讀翻譯 (TTS)</label>
@@ -299,15 +328,23 @@ function showWarn(msg) { $("warn").textContent = msg; $("warn").style.display = 
 // ---------- Mode ----------
 let mode = store.get("mode", "speech");
 function setMode(m) {
+  if (mode === "vision" && m !== "vision") { stopCamera(); stopAsk(); }
   mode = m; store.set("mode", m); stopListening();
+  const vis = m === "vision";
+  $("visionCtl").style.display = vis ? "" : "none";
+  $("tgtLang").parentElement.style.display = vis ? "none" : "";
+  $("swap").style.display = vis ? "none" : "";
+  $("style").style.display = $("styleLabel").style.display = vis ? "none" : "";
   document.querySelectorAll("#modeSeg button").forEach(b => b.classList.toggle("on", b.dataset.mode === m));
   $("speechCtl").style.display = m === "speech" ? "" : "none";
   $("convoCtl").style.display = m === "convo" ? "" : "none";
-  $("textCtl").style.display = (m === "text" || m === "compose") ? "flex" : "none";
+  $("textCtl").style.display = (m === "text" || m === "compose" || vis) ? "flex" : "none";
   $("textIn").placeholder = m === "compose"
     ? "用你的語言寫訊息 / 貼文，翻譯後自動複製，直接貼到 IG、TikTok、WhatsApp、Discord…"
+    : vis ? "打字問 AI（會連同目前鏡頭畫面一起送出）"
     : "輸入要翻譯的文字，Enter 送出（Shift+Enter 換行）";
-  $("srcLabel").textContent = m === "convo" ? "A 的語言" : "來源語言";
+  $("sendText").textContent = vis ? "問" : "翻譯";
+  $("srcLabel").textContent = m === "convo" ? "A 的語言" : vis ? "我的語言（AI 用這個回答）" : "來源語言";
   $("tgtLabel").textContent = m === "convo" ? "B 的語言" : "目標語言";
   updateTalkLabels();
 }
@@ -407,8 +444,99 @@ async function streamSSE(url, payload, onDelta) {
 
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("on"), 2200); }
 
+// ---------- Video assistant (camera + question -> Claude vision) ----------
+const frames = {}; // seg.id -> full-size frame (kept in memory only, for retry)
+let camStream = null, facing = store.get("facing", "environment");
+async function startCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) { showWarn("這個瀏覽器不能使用鏡頭。iPhone 請用 Safari，並確認網址是 https://。"); return false; }
+  stopCamera();
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facing }, width: { ideal: 1280 } }, audio: false });
+  } catch (e) {
+    showWarn("無法開啟鏡頭：" + (e.name === "NotAllowedError" ? "請在瀏覽器允許使用相機。" : e.message));
+    return false;
+  }
+  const v = $("cam"); v.srcObject = camStream; v.style.transform = facing === "user" ? "scaleX(-1)" : "";
+  await v.play().catch(() => {});
+  $("camOff").style.display = "none"; $("camBtn").textContent = "⏹ 關閉鏡頭";
+  return true;
+}
+function stopCamera() {
+  if (camStream) camStream.getTracks().forEach(t => t.stop());
+  camStream = null; $("cam").srcObject = null;
+  $("camOff").style.display = ""; $("camBtn").textContent = "📷 開啟鏡頭";
+}
+$("camBtn").onclick = () => camStream ? stopCamera() : startCamera();
+$("camFlip").onclick = () => { facing = facing === "user" ? "environment" : "user"; store.set("facing", facing); if (camStream) startCamera(); };
+
+// grab the current frame: full (max 1024px, for the AI) and a small thumbnail (for the card)
+function grabFrame() {
+  const v = $("cam"); if (!camStream || !v.videoWidth) return null;
+  const shot = (maxSide, q) => {
+    const k = Math.min(1, maxSide / Math.max(v.videoWidth, v.videoHeight));
+    const c = document.createElement("canvas"); c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k);
+    c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", q);
+  };
+  return { full: shot(1024, 0.72), thumb: shot(192, 0.6) };
+}
+function camState(text) { const el = $("camState"); el.textContent = text; el.style.display = text ? "block" : "none"; }
+
+// iOS only lets a page speak after a user gesture: speak an empty utterance on the first tap
+let ttsUnlocked = false;
+function unlockTts() { if (ttsUnlocked || !("speechSynthesis" in window)) return; ttsUnlocked = true; try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch {} }
+
+async function askVision(question) {
+  if (!camStream && !(await startCamera())) return;
+  if (!$("cam").videoWidth) await new Promise(r => setTimeout(r, 400));
+  const f = grabFrame(); if (!f) { showWarn("鏡頭還沒準備好，請再按一次。"); return; }
+  const lang = $("srcLang").value;
+  if (!segments.length) { sessionStart = Date.now(); store.set("sessionStart", sessionStart); }
+  const seg = { id: Date.now() + Math.random(), t: Date.now(), kind: "vision", speaker: null, from: lang, to: lang,
+    src: question || "（看一下畫面）", q: question, tgt: "", state: "pending", thumb: f.thumb };
+  frames[seg.id] = f.full;
+  segments.push(seg); renderCard(seg); runVision(seg);
+}
+async function runVision(seg) {
+  const full = frames[seg.id];
+  if (!full) { seg.state = "error"; seg.err = "畫面已不在（重新整理過頁面），請重新拍一次。"; updateCard(seg); return; }
+  const history = segments.filter(s => s.kind === "vision" && s.state === "done" && s !== seg).slice(-4).map(s => ({ question: s.q || "", answer: s.tgt }));
+  seg.tgt = ""; seg.state = "pending"; updateCard(seg); camState("🤔 AI 思考中…");
+  try {
+    await streamSSE("/api/vision", { image: full.split(",")[1], media_type: "image/jpeg", question: seg.q || "",
+      answer_lang: langName(seg.to), history }, (t) => { seg.tgt += t; updateCard(seg); });
+    seg.state = "done";
+  } catch (e) { seg.state = "error"; seg.err = "回答失敗：" + e.message; }
+  camState(""); updateCard(seg); persist();
+  if (seg.state === "done" && seg.tgt) speak(seg.tgt, seg.to, true);
+}
+
+// one spoken question per tap: listen until the sentence ends, then snap the frame and ask
+let askRec = null;
+function stopAsk() { if (askRec) { const r = askRec; askRec = null; try { r.abort(); } catch {} } $("askBtn").className = "big primary"; $("askBtn").textContent = "🎙 按一下，開口問"; $("interim").textContent = ""; }
+$("askBtn").onclick = async () => {
+  unlockTts(); window.speechSynthesis?.cancel();
+  if (askRec) { stopAsk(); return; }
+  if (!SR) { showWarn("此瀏覽器不支援語音辨識，請在右邊輸入框打字問。"); return; }
+  if (!camStream && !(await startCamera())) return;
+  const r = new SR(); askRec = r;
+  r.lang = $("srcLang").value; r.continuous = false; r.interimResults = true; r.maxAlternatives = 1;
+  let finalText = "", latest = "";
+  r.onresult = (ev) => {
+    latest = Array.from(ev.results).map(x => x[0].transcript).join("");
+    if (ev.results[ev.results.length - 1].isFinal) finalText = latest;
+    $("interim").textContent = latest;
+  };
+  r.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") showWarn("麥克風權限被拒絕，請在瀏覽器網址列允許麥克風。"); };
+  r.onend = () => { const q = (finalText || latest).trim(); const mine = askRec === r; stopAsk(); if (mine && q) askVision(q); };
+  $("askBtn").className = "big rec"; $("askBtn").textContent = "■ 聆聽中…（說完會自動送出）";
+  try { r.start(); } catch { stopAsk(); }
+};
+$("lookBtn").onclick = () => { unlockTts(); window.speechSynthesis?.cancel(); askVision(""); };
+
 async function translate(seg) {
-  const context = segments.filter(s => s.state === "done" && s !== seg).slice(-6).map(s => ({ source: s.src, translation: s.tgt }));
+  if (seg.kind === "vision") return runVision(seg);
+  const context = segments.filter(s => s.state === "done" && s !== seg && s.kind !== "vision").slice(-6).map(s => ({ source: s.src, translation: s.tgt }));
   seg.tgt = ""; seg.state = "pending"; updateCard(seg);
   try {
     await streamSSE("/api/translate", { text: seg.src, source_lang: seg.from === "auto" ? "auto" : langName(seg.from),
@@ -423,7 +551,7 @@ async function translate(seg) {
   }
 }
 
-function persist() { store.set("segments", segments.slice(-300).map(({ err, ...s }) => s)); }
+function persist() { store.set("segments", segments.slice(-300).map(({ err, thumb, ...s }) => s)); }
 
 function renderCard(seg) {
   $("empty")?.remove();
@@ -432,7 +560,13 @@ function renderCard(seg) {
   el.innerHTML = `<div class="meta"><span class="who"></span><span class="time"></span>
     <span class="acts"><button data-a="speak" title="朗讀">🔊</button><button data-a="copy" title="複製">⧉</button><button data-a="explain" title="解釋俚語 / 語氣">📖</button><button data-a="share" title="分享">📤</button><button data-a="retry" title="重新翻譯">↻</button></span></div>
     <div class="src"></div><div class="tgt"></div><div class="explain" style="display:none"></div>`;
-  el.querySelector(".who").textContent = (seg.speaker ? seg.speaker + " · " : "") + (seg.from === "auto" ? "自動偵測" : langLabel(seg.from)) + " → " + langLabel(seg.to);
+  el.querySelector(".who").textContent = seg.kind === "vision" ? "📹 視訊助手"
+    : (seg.speaker ? seg.speaker + " · " : "") + (seg.from === "auto" ? "自動偵測" : langLabel(seg.from)) + " → " + langLabel(seg.to);
+  if (seg.kind === "vision") {
+    el.querySelector('[data-a="explain"]').remove();
+    el.querySelector('[data-a="retry"]').title = "重新回答";
+    if (seg.thumb) { const im = document.createElement("img"); im.className = "thumb"; im.src = seg.thumb; im.alt = "當時的畫面"; el.querySelector(".src").before(im); }
+  }
   el.querySelector(".time").textContent = new Date(seg.t).toLocaleTimeString();
   el.querySelector(".src").textContent = seg.src;
   el.querySelector(".src").style.display = $("showSrc").checked ? "" : "none";
@@ -441,7 +575,7 @@ function renderCard(seg) {
   el.querySelector('[data-a="share"]').onclick = () => navigator.share
     ? navigator.share({ text: seg.tgt }).catch(() => {})
     : navigator.clipboard?.writeText(seg.tgt).then(() => toast("✓ 已複製（此瀏覽器不支援分享）"));
-  el.querySelector('[data-a="explain"]').onclick = () => explain(seg, el.querySelector(".explain"));
+  el.querySelector('[data-a="explain"]')?.addEventListener("click", () => explain(seg, el.querySelector(".explain")));
   el.querySelector('[data-a="retry"]').onclick = () => translate(seg);
   $("feed").prepend(el); // newest on top
   updateCard(seg);
@@ -463,6 +597,11 @@ function updateCard(seg) {
   tgt.className = "tgt" + (seg.state === "pending" ? " caret" : "") + (seg.state === "error" ? " err" : "");
   tgt.textContent = seg.state === "error" ? (seg.err || "錯誤") : seg.tgt;
   if (seg === segments[segments.length - 1]) $("feed").scrollTop = 0; // keep the newest sentence in view
+  if (seg.kind === "vision" && seg === segments[segments.length - 1]) { // latest answer over the camera view
+    $("camAnswer").style.display = "block";
+    $("camQ").textContent = "問：" + seg.src;
+    $("camA").textContent = seg.state === "error" ? (seg.err || "錯誤") : (seg.tgt || "…");
+  }
   if ($("caption").classList.contains("on") && seg === segments[segments.length - 1]) {
     $("capSrc").textContent = seg.src; $("capTgt").textContent = seg.tgt || "…";
   }
@@ -486,7 +625,10 @@ function nextTts() {
 }
 
 // ---------- Text mode ----------
-function sendText() { const t = $("textIn").value.trim(); if (!t) return; $("textIn").value = ""; addSegment(t, "A"); }
+function sendText() {
+  const t = $("textIn").value.trim(); if (!t) return; $("textIn").value = "";
+  if (mode === "vision") { unlockTts(); askVision(t); } else addSegment(t, "A");
+}
 $("sendText").onclick = sendText;
 $("textIn").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendText(); } };
 
