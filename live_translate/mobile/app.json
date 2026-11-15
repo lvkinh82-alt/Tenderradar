@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "LinguaLive",
+    "slug": "lingualive",
+    "scheme": "lingualive",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f1218"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lingualive.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        },
+        "NSLocalNetworkUsageDescription": "連線到你在區域網路上的 LinguaLive 翻譯伺服器。"
+      }
+    },
+    "android": {
+      "package": "com.lingualive.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#7c3aed",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "LinguaLive 需要使用麥克風來聆聽並即時翻譯你說的話。",
+          "speechRecognitionPermission": "LinguaLive 需要語音辨識，把你說的話轉成文字再翻譯。"
+        }
+      ],
+      "expo-sharing",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ]
+  }
+}

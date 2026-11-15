@@ -52,5 +52,6 @@ python -m live_translate.server
 
 ### 與原生翻譯 App 的差異
 
-- 這是網頁 App（PWA），不能像 iOS 原生 App 一樣做成「系統鍵盤」；改用「✍️ 社群」模式：寫好 → 自動複製 → 貼上。
+- 手機原生 App（iPhone + Android）在 [`mobile/`](mobile/README.md)，網頁版與 App 共用同一個伺服器。
+- 網頁版不能做成「系統鍵盤」；改用「✍️ 社群」模式：寫好 → 自動複製 → 貼上。
 - 翻譯需要網路（由 Claude 處理），沒有離線翻譯；介面本身可離線開啟。
