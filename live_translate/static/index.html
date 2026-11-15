@@ -172,8 +172,8 @@
       <button id="exportSrt">⬇ SRT</button>
       <button id="clearBtn">清除</button>
     </div>
-    <div id="feed"><div class="empty" id="empty">按「開始聆聽」並說話，翻譯會即時出現在這裡。</div></div>
     <div class="interim" id="interim"></div>
+    <div id="feed"><div class="empty" id="empty">按「開始聆聽」並說話，翻譯會即時出現在這裡（最新的在最上面）。</div></div>
     <div class="text-in" id="textCtl" style="display:none">
       <textarea id="textIn" placeholder="輸入要翻譯的文字，Enter 送出（Shift+Enter 換行）"></textarea>
       <button class="primary" id="sendText">翻譯</button>
@@ -443,7 +443,7 @@ function renderCard(seg) {
     : navigator.clipboard?.writeText(seg.tgt).then(() => toast("✓ 已複製（此瀏覽器不支援分享）"));
   el.querySelector('[data-a="explain"]').onclick = () => explain(seg, el.querySelector(".explain"));
   el.querySelector('[data-a="retry"]').onclick = () => translate(seg);
-  $("feed").appendChild(el);
+  $("feed").prepend(el); // newest on top
   updateCard(seg);
 }
 async function explain(seg, box) {
@@ -462,7 +462,7 @@ function updateCard(seg) {
   const tgt = el.querySelector(".tgt");
   tgt.className = "tgt" + (seg.state === "pending" ? " caret" : "") + (seg.state === "error" ? " err" : "");
   tgt.textContent = seg.state === "error" ? (seg.err || "錯誤") : seg.tgt;
-  const feed = $("feed"); feed.scrollTop = feed.scrollHeight;
+  if (seg === segments[segments.length - 1]) $("feed").scrollTop = 0; // keep the newest sentence in view
   if ($("caption").classList.contains("on") && seg === segments[segments.length - 1]) {
     $("capSrc").textContent = seg.src; $("capTgt").textContent = seg.tgt || "…";
   }

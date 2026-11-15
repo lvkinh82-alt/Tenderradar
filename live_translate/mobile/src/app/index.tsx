@@ -1,5 +1,5 @@
 import { router, Stack } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -61,10 +61,12 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
+  // newest sentence first, so it is always visible without scrolling
+  const newestFirst = useMemo(() => [...segments].reverse(), [segments]);
   const last = segments[segments.length - 1];
   useEffect(() => {
-    if (segments.length) requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
-  }, [segments.length, last?.tgt, last?.explanation]);
+    if (segments.length) requestAnimationFrame(() => listRef.current?.scrollToOffset({ offset: 0, animated: true }));
+  }, [segments.length, last?.tgt]);
 
   const sendText = () => {
     const t = text.trim();
@@ -183,10 +185,17 @@ export default function Home() {
         })}
       </ScrollView>
 
-      {/* transcript */}
+      {!!rec.interim && (
+        <Text style={[s.interim, { color: c.muted }]} numberOfLines={2}>
+          {rec.interim}
+        </Text>
+      )}
+      {!!rec.error && <Text style={[s.interim, { color: c.danger }]}>{rec.error}</Text>}
+
+      {/* transcript, newest on top */}
       <FlatList
         ref={listRef}
-        data={segments}
+        data={newestFirst}
         keyExtractor={(x) => x.id}
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 12, flexGrow: 1 }}
@@ -211,13 +220,6 @@ export default function Home() {
           </View>
         }
       />
-
-      {!!rec.interim && (
-        <Text style={[s.interim, { color: c.muted }]} numberOfLines={2}>
-          {rec.interim}
-        </Text>
-      )}
-      {!!rec.error && <Text style={[s.interim, { color: c.danger }]}>{rec.error}</Text>}
 
       {/* bottom controls */}
       <View style={[s.bottom, { paddingBottom: Math.max(insets.bottom, 12), backgroundColor: c.panel, borderColor: c.line }]}>
@@ -288,7 +290,7 @@ const s = StyleSheet.create({
   chips: { gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
   chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
-  interim: { paddingHorizontal: 16, paddingBottom: 6, fontStyle: "italic" },
+  interim: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2, fontStyle: "italic" },
   bottom: { paddingHorizontal: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
   mic: { borderRadius: 16, paddingVertical: 16, alignItems: "center" },
   micText: { color: "#fff", fontSize: 17, fontWeight: "700" },
