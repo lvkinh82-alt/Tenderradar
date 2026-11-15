@@ -79,7 +79,7 @@ export function useRecognizer(onSentence: (text: string, tag: string) => void) {
     setError(null);
     const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
     if (!perm.granted) {
-      setError("沒有麥克風或語音辨識權限，請到系統設定中允許 LinguaLive。");
+      setError("沒有麥克風或語音辨識權限，請到系統設定中允許 Muối Từ。");
       return;
     }
     setTag(newTag);

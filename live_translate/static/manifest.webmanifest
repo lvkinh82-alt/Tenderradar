@@ -1,14 +1,13 @@
 {
-  "name": "LinguaLive 即時 AI 翻譯",
-  "short_name": "LinguaLive",
+  "name": "Muối Từ · Phiên Dịch AI",
+  "short_name": "Muối Từ",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#0f1218",
-  "theme_color": "#7c3aed",
+  "theme_color": "#047857",
   "icons": [
-    { "src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
     { "src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }

@@ -1,4 +1,4 @@
-"""LinguaLive - real-time speech translation server.
+"""Muối Từ (Phiên Dịch AI) - real-time speech translation server.
 
 Browser captures speech (Web Speech API) -> this server streams the
 translation back from Claude over Server-Sent Events.
@@ -57,7 +57,7 @@ Explain, in the requested explanation language, briefly and in plain text (no ma
 3. One or two alternative ways to say it in the target language, with when to use each.
 Keep it under 150 words. If there is nothing notable, say so in one sentence and give the alternatives."""
 
-app = FastAPI(title="LinguaLive")
+app = FastAPI(title="Muối Từ · Phiên Dịch AI")
 _client: anthropic.Anthropic | None = None
 
 

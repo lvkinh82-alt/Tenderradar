@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LinguaLive 即時翻譯</title>
+<title>Muối Từ · Phiên Dịch AI</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/static/favicon-48.png" type="image/png">
 <link rel="apple-touch-icon" href="/static/icon-180.png">
-<meta name="theme-color" content="#7c3aed">
+<meta name="theme-color" content="#047857">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <style>
   :root {
     --bg: #f6f7fb; --panel: #ffffff; --ink: #1b1f2a; --muted: #6b7385;
-    --line: #e3e6ee; --accent: #3b5bfd; --accent-ink: #fff; --a: #0f9d74; --b: #c2410c;
+    --line: #e3e6ee; --accent: #047857; --accent-ink: #fff; --a: #2563eb; --b: #c2410c;
     --interim: #9aa1b2; --danger: #d92d20; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.05);
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg:#0f1218; --panel:#171b23; --ink:#e8ebf2; --muted:#9097a8; --line:#272d39;
-      --accent:#6d86ff; --a:#34d399; --b:#fb923c; --interim:#6b7385; --shadow:none; }
+      --accent:#34d399; --accent-ink:#052e24; --a:#60a5fa; --b:#fb923c; --interim:#6b7385; --shadow:none; }
   }
   * { box-sizing: border-box; }
   body { margin:0; font:15px/1.55 system-ui,-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
@@ -28,7 +28,7 @@
   .status { margin-left:auto; font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px; }
   .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); }
   .dot.live { background:var(--danger); animation:pulse 1.2s infinite; }
-  .dot.ok { background:var(--a); }
+  .dot.ok { background:var(--accent); }
   @keyframes pulse { 50% { opacity:.3; } }
   main { max-width:1100px; margin:0 auto; padding:16px; display:grid; gap:16px; grid-template-columns: 300px 1fr; }
   @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
@@ -100,7 +100,7 @@
 </head>
 <body>
 <header>
-  <h1>Lingua<span>Live</span> · 即時 AI 翻譯</h1>
+  <h1><span>Muối Từ</span> · Phiên Dịch AI</h1>
   <div class="status"><span class="dot" id="dot"></span><span id="statusText">檢查伺服器…</span></div>
 </header>
 

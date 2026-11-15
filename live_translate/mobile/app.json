@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "LinguaLive",
+    "name": "Muối Từ",
     "slug": "lingualive",
     "scheme": "lingualive",
     "version": "1.0.0",
@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0f1218"
+      "backgroundColor": "#047857"
     },
     "ios": {
       "supportsTablet": true,
@@ -19,13 +19,13 @@
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         },
-        "NSLocalNetworkUsageDescription": "連線到你在區域網路上的 LinguaLive 翻譯伺服器。"
+        "NSLocalNetworkUsageDescription": "連線到你在區域網路上的 Muối Từ 翻譯伺服器。"
       }
     },
     "android": {
       "package": "com.lingualive.app",
       "adaptiveIcon": {
-        "backgroundColor": "#7c3aed",
+        "backgroundColor": "#10b981",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -40,8 +40,8 @@
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "LinguaLive 需要使用麥克風來聆聽並即時翻譯你說的話。",
-          "speechRecognitionPermission": "LinguaLive 需要語音辨識，把你說的話轉成文字再翻譯。"
+          "microphonePermission": "Muối Từ 需要使用麥克風來聆聽並即時翻譯你說的話。",
+          "speechRecognitionPermission": "Muối Từ 需要語音辨識，把你說的話轉成文字再翻譯。"
         }
       ],
       "expo-sharing",

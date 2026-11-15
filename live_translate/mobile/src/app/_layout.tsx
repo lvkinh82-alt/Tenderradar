@@ -15,7 +15,7 @@ function Nav() {
         contentStyle: { backgroundColor: c.bg },
       }}
     >
-      <Stack.Screen name="index" options={{ title: "LinguaLive" }} />
+      <Stack.Screen name="index" options={{ title: "Muối Từ" }} />
       <Stack.Screen name="settings" options={{ title: "設定", presentation: "modal" }} />
       <Stack.Screen name="caption" options={{ headerShown: false, presentation: "fullScreenModal", animation: "fade" }} />
     </Stack>

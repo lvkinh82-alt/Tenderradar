@@ -1,6 +1,6 @@
-# LinguaLive App（iPhone + Android）
+# Muối Từ · Phiên Dịch AI — 手機 App（iPhone + Android）
 
-用 Expo（React Native）寫的原生 App：手機內建語音辨識 → 你的 LinguaLive 伺服器 → Claude 串流翻譯。
+用 Expo（React Native）寫的原生 App：手機內建語音辨識 → 你的 Muối Từ 翻譯伺服器 → Claude 串流翻譯。
 
 ## 功能
 

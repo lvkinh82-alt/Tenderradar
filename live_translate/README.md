@@ -1,4 +1,4 @@
-# LinguaLive · 即時 AI 翻譯
+# Muối Từ · Phiên Dịch AI（即時 AI 翻譯）
 
 瀏覽器即時語音辨識 + Claude 串流翻譯的即時口譯工具。
 

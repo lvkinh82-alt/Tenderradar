@@ -1,4 +1,4 @@
-// Talks to the LinguaLive server (live_translate/server.py), which holds the
+// Talks to the Muối Từ translation server (live_translate/server.py), which holds the
 // Claude API key. The app never stores the API key itself.
 import { fetch } from "expo/fetch";
 

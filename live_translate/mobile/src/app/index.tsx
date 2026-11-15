@@ -193,7 +193,7 @@ export default function Home() {
           <View style={s.empty}>
             <Text style={{ color: c.muted, textAlign: "center", lineHeight: 22 }}>
               {mode === "speech" && "按下麥克風開始說話，\n每說完一句就會即時翻譯。"}
-              {mode === "convo" && "兩個人輪流按自己的按鈕說話，\nLinguaLive 會雙向翻譯。"}
+              {mode === "convo" && "兩個人輪流按自己的按鈕說話，\nMuối Từ 會雙向翻譯。"}
               {mode === "text" && "輸入任何語言的文字，\n自動偵測並翻譯。"}
               {mode === "compose" && "用你的語言寫訊息或貼文，\n翻譯好會自動複製，直接貼到 IG、TikTok、WhatsApp。"}
             </Text>
