@@ -94,7 +94,8 @@
   .cam { position:relative; margin-top:12px; border-radius:12px; overflow:hidden; background:#000; width:100%; height:min(56vh, 120vw); }
   .cam .cam-answer { position:absolute; left:0; right:0; bottom:0; max-height:45%; overflow:auto; background:linear-gradient(transparent, rgba(0,0,0,.82) 18%); color:#fff; font-size:17px; line-height:1.45; padding:22px 14px 12px; display:none; white-space:pre-wrap; }
   .cam .cam-answer .cam-q { color:#cbd5e1; font-size:13px; margin-bottom:4px; }
-  .cam video { width:100%; height:100%; object-fit:cover; display:block; }
+  .cam video, .cam #still { width:100%; height:100%; object-fit:cover; display:block; }
+  .cam #still { object-fit:contain; background:#000; }
   .cam .cam-off { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#9aa1b2; font-size:14px; text-align:center; padding:16px; }
   .cam .cam-state { position:absolute; left:10px; top:10px; background:rgba(0,0,0,.55); color:#fff; font-size:12px; padding:4px 8px; border-radius:8px; display:none; }
   .cam-row { display:flex; gap:8px; margin-top:8px; }
@@ -170,6 +171,7 @@
     <div id="visionCtl" style="display:none">
       <div class="cam">
         <video id="cam" playsinline muted autoplay></video>
+        <img id="still" alt="上傳的圖片" style="display:none">
         <div class="cam-off" id="camOff">按下「開啟鏡頭」，把鏡頭對準要問的東西</div>
         <div class="cam-state" id="camState"></div>
         <div class="cam-answer" id="camAnswer"><div class="cam-q" id="camQ"></div><div id="camA"></div></div>
@@ -177,10 +179,13 @@
       <div class="cam-row">
         <button id="camBtn">📷 開啟鏡頭</button>
         <button id="camFlip" title="切換前後鏡頭">🔄 前 / 後</button>
+        <button id="uploadBtn" title="從相簿選圖片或拍照">🖼 上傳圖片</button>
       </div>
+      <input type="file" id="imgFile" accept="image/*" hidden>
       <button class="big primary" id="askBtn">🎙 按一下，開口問</button>
       <button id="lookBtn" style="width:100%;margin-top:8px">👀 看一下畫面（不用說話）</button>
-      <div class="hint">AI 會看鏡頭畫面＋聽你的問題，用「我的語言」回答並唸出來。也可以在右邊輸入框打字問。</div>
+      <label class="check"><input type="checkbox" id="voiceReply" checked> 🔊 每次回答都用語音唸出來</label>
+      <div class="hint">AI 會看鏡頭畫面（或你上傳的圖片）＋聽你的問題，用「我的語言」回答並唸出來。也可以在輸入框打字問。上傳圖片後可以繼續針對同一張圖追問；按「開啟鏡頭」回到即時畫面。</div>
     </div>
 
     <label class="check"><input type="checkbox" id="tts"> 自動朗讀翻譯 (TTS)</label>
@@ -456,7 +461,8 @@ async function startCamera() {
     showWarn("無法開啟鏡頭：" + (e.name === "NotAllowedError" ? "請在瀏覽器允許使用相機。" : e.message));
     return false;
   }
-  const v = $("cam"); v.srcObject = camStream; v.style.transform = facing === "user" ? "scaleX(-1)" : "";
+  clearStill();
+  const v = $("cam"); v.style.display = ""; v.srcObject = camStream; v.style.transform = facing === "user" ? "scaleX(-1)" : "";
   await v.play().catch(() => {});
   $("camOff").style.display = "none"; $("camBtn").textContent = "⏹ 關閉鏡頭";
   return true;
@@ -464,30 +470,59 @@ async function startCamera() {
 function stopCamera() {
   if (camStream) camStream.getTracks().forEach(t => t.stop());
   camStream = null; $("cam").srcObject = null;
-  $("camOff").style.display = ""; $("camBtn").textContent = "📷 開啟鏡頭";
+  $("camOff").style.display = stillImage ? "none" : ""; $("camBtn").textContent = "📷 開啟鏡頭";
 }
+
+// ---- uploaded picture: used instead of the camera until the camera is opened again
+let stillImage = null; // { full, thumb } data URLs
+function clearStill() { stillImage = null; $("still").style.display = "none"; $("still").removeAttribute("src"); }
+function scaleImage(src, maxSide, q) {
+  const k = Math.min(1, maxSide / Math.max(src.naturalWidth || src.videoWidth, src.naturalHeight || src.videoHeight));
+  const w = src.naturalWidth || src.videoWidth, h = src.naturalHeight || src.videoHeight;
+  const c = document.createElement("canvas"); c.width = Math.round(w * k); c.height = Math.round(h * k);
+  c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", q);
+}
+$("uploadBtn").onclick = () => { unlockTts(); $("imgFile").click(); };
+$("imgFile").onchange = async () => {
+  const file = $("imgFile").files[0]; $("imgFile").value = "";
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    // documents and menus need detail: keep up to 1568px (the model's sweet spot) for uploads
+    stillImage = { full: scaleImage(img, 1568, 0.82), thumb: scaleImage(img, 192, 0.6) };
+  } catch { showWarn("這張圖片打不開，請換一張（JPG、PNG 或手機照片）。"); return; }
+  finally { URL.revokeObjectURL(url); }
+  stopCamera(); $("cam").style.display = "none";
+  $("still").src = stillImage.full; $("still").style.display = ""; $("camOff").style.display = "none";
+  const q = $("textIn").value.trim(); $("textIn").value = "";
+  askVision(q); // describe + translate right away (or answer the question typed beforehand)
+};
 $("camBtn").onclick = () => camStream ? stopCamera() : startCamera();
 $("camFlip").onclick = () => { facing = facing === "user" ? "environment" : "user"; store.set("facing", facing); if (camStream) startCamera(); };
 
-// grab the current frame: full (max 1024px, for the AI) and a small thumbnail (for the card)
+// grab what the AI should look at: the uploaded picture, or the current camera frame
+// (full: max 1024px for the AI; thumb: small, for the card)
 function grabFrame() {
+  if (!camStream && stillImage) return stillImage;
   const v = $("cam"); if (!camStream || !v.videoWidth) return null;
-  const shot = (maxSide, q) => {
-    const k = Math.min(1, maxSide / Math.max(v.videoWidth, v.videoHeight));
-    const c = document.createElement("canvas"); c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k);
-    c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
-    return c.toDataURL("image/jpeg", q);
-  };
-  return { full: shot(1024, 0.72), thumb: shot(192, 0.6) };
+  return { full: scaleImage(v, 1024, 0.72), thumb: scaleImage(v, 192, 0.6) };
 }
 function camState(text) { const el = $("camState"); el.textContent = text; el.style.display = text ? "block" : "none"; }
 
-// iOS only lets a page speak after a user gesture: speak an empty utterance on the first tap
+// iOS only lets a page speak after a user gesture: on the first tap, speak a silent utterance
 let ttsUnlocked = false;
-function unlockTts() { if (ttsUnlocked || !("speechSynthesis" in window)) return; ttsUnlocked = true; try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch {} }
+function unlockTts() {
+  if (ttsUnlocked || !("speechSynthesis" in window)) return;
+  ttsUnlocked = true;
+  try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); } catch {}
+}
+$("voiceReply").checked = store.get("voiceReply", true);
+$("voiceReply").onchange = () => { store.set("voiceReply", $("voiceReply").checked); if (!$("voiceReply").checked) window.speechSynthesis?.cancel(); };
 
 async function askVision(question) {
-  if (!camStream && !(await startCamera())) return;
+  if (!camStream && !stillImage && !(await startCamera())) return;
   if (!$("cam").videoWidth) await new Promise(r => setTimeout(r, 400));
   const f = grabFrame(); if (!f) { showWarn("鏡頭還沒準備好，請再按一次。"); return; }
   const lang = $("srcLang").value;
@@ -502,13 +537,22 @@ async function runVision(seg) {
   if (!full) { seg.state = "error"; seg.err = "畫面已不在（重新整理過頁面），請重新拍一次。"; updateCard(seg); return; }
   const history = segments.filter(s => s.kind === "vision" && s.state === "done" && s !== seg).slice(-4).map(s => ({ question: s.q || "", answer: s.tgt }));
   seg.tgt = ""; seg.state = "pending"; updateCard(seg); camState("🤔 AI 思考中…");
+  const voice = $("voiceReply").checked;
+  if (voice) { window.speechSynthesis?.cancel(); ttsQueue.length = 0; speaking = false; }
+  let spoken = 0;
+  const speakFinished = (final) => { // queue every complete sentence as soon as it arrives
+    if (!voice) return;
+    const rest = seg.tgt.slice(spoken);
+    const m = final ? rest.length : Math.max(...["。", "！", "？", ".", "!", "?", "\n"].map(p => rest.lastIndexOf(p))) + 1;
+    if (m > 0 && rest.slice(0, m).trim()) { speak(rest.slice(0, m).trim(), seg.to); spoken += m; }
+  };
   try {
     await streamSSE("/api/vision", { image: full.split(",")[1], media_type: "image/jpeg", question: seg.q || "",
-      answer_lang: langName(seg.to), history }, (t) => { seg.tgt += t; updateCard(seg); });
+      answer_lang: langName(seg.to), history }, (t) => { seg.tgt += t; updateCard(seg); speakFinished(false); });
     seg.state = "done";
+    speakFinished(true);
   } catch (e) { seg.state = "error"; seg.err = "回答失敗：" + e.message; }
   camState(""); updateCard(seg); persist();
-  if (seg.state === "done" && seg.tgt) speak(seg.tgt, seg.to, true);
 }
 
 // one spoken question per tap: listen until the sentence ends, then snap the frame and ask
@@ -518,7 +562,7 @@ $("askBtn").onclick = async () => {
   unlockTts(); window.speechSynthesis?.cancel();
   if (askRec) { stopAsk(); return; }
   if (!SR) { showWarn("此瀏覽器不支援語音辨識，請在右邊輸入框打字問。"); return; }
-  if (!camStream && !(await startCamera())) return;
+  if (!camStream && !stillImage && !(await startCamera())) return;
   const r = new SR(); askRec = r;
   r.lang = $("srcLang").value; r.continuous = false; r.interimResults = true; r.maxAlternatives = 1;
   let finalText = "", latest = "";
