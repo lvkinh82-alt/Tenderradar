@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LinguaLive 即時翻譯</title>
+<style>
+  :root {
+    --bg: #f6f7fb; --panel: #ffffff; --ink: #1b1f2a; --muted: #6b7385;
+    --line: #e3e6ee; --accent: #3b5bfd; --accent-ink: #fff; --a: #0f9d74; --b: #c2410c;
+    --interim: #9aa1b2; --danger: #d92d20; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1218; --panel:#171b23; --ink:#e8ebf2; --muted:#9097a8; --line:#272d39;
+      --accent:#6d86ff; --a:#34d399; --b:#fb923c; --interim:#6b7385; --shadow:none; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.55 system-ui,-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+    background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; gap:12px; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; }
+  header h1 { font-size:18px; margin:0; letter-spacing:.2px; }
+  header h1 span { color:var(--accent); }
+  .status { margin-left:auto; font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--muted); }
+  .dot.live { background:var(--danger); animation:pulse 1.2s infinite; }
+  .dot.ok { background:var(--a); }
+  @keyframes pulse { 50% { opacity:.3; } }
+  main { max-width:1100px; margin:0 auto; padding:16px; display:grid; gap:16px; grid-template-columns: 300px 1fr; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; box-shadow:var(--shadow); }
+  .panel h2 { font-size:13px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:0 0 10px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  select, textarea, input[type=text] { width:100%; padding:9px 10px; border-radius:9px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font:inherit; }
+  textarea { resize:vertical; min-height:70px; }
+  .row { display:flex; gap:8px; align-items:end; }
+  .row > div { flex:1; min-width:0; }
+  button { font:inherit; border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:9px; padding:8px 12px; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  button.big { width:100%; padding:14px; font-size:16px; font-weight:600; border-radius:12px; margin-top:12px; }
+  button.rec { background:var(--danger); border-color:var(--danger); color:#fff; }
+  .seg { display:flex; gap:4px; background:var(--bg); padding:4px; border-radius:10px; border:1px solid var(--line); }
+  .seg button { flex:1; border:none; background:transparent; padding:7px 4px; font-size:13px; }
+  .seg button.on { background:var(--panel); box-shadow:var(--shadow); color:var(--accent); font-weight:600; }
+  .check { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:14px; color:var(--ink); }
+  .check input { width:16px; height:16px; }
+  .talk { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+  .talk button { padding:16px 8px; font-weight:600; border-radius:12px; }
+  .talk .ta { border-color:var(--a); color:var(--a); }
+  .talk .tb { border-color:var(--b); color:var(--b); }
+  .talk button.rec { color:#fff; }
+  #feed { display:flex; flex-direction:column; gap:10px; min-height:360px; max-height:calc(100vh - 190px); overflow:auto; padding-right:4px; }
+  .empty { color:var(--muted); text-align:center; padding:60px 20px; }
+  .card { border:1px solid var(--line); border-radius:12px; padding:12px 14px; background:var(--bg); position:relative; }
+  .card.A { border-left:4px solid var(--a); } .card.B { border-left:4px solid var(--b); }
+  .card .meta { font-size:12px; color:var(--muted); display:flex; gap:8px; align-items:center; }
+  .card .src { margin-top:4px; color:var(--muted); }
+  .card .tgt { margin-top:4px; font-size:18px; font-weight:500; white-space:pre-wrap; }
+  .card .tgt.err { color:var(--danger); font-size:14px; }
+  .card .acts { margin-left:auto; display:flex; gap:4px; }
+  .card .acts button { padding:2px 8px; font-size:12px; }
+  .interim { color:var(--interim); font-style:italic; min-height:24px; padding:6px 2px; }
+  .caret::after { content:"▍"; animation:pulse 1s infinite; color:var(--accent); }
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .toolbar .grow { flex:1; }
+  .text-in { display:flex; gap:8px; margin-top:10px; }
+  .text-in textarea { min-height:48px; }
+  .hint { font-size:12px; color:var(--muted); margin-top:8px; }
+  .warn { background:#fff4e5; color:#8a4b00; border:1px solid #f5c27a; padding:10px 12px; border-radius:10px; font-size:13px; margin-bottom:10px; display:none; }
+  @media (prefers-color-scheme: dark) { .warn { background:#2a1f10; color:#f5c27a; border-color:#6b4a14; } }
+  /* caption (subtitle) mode */
+  #caption { position:fixed; inset:0; background:#000; color:#fff; display:none; flex-direction:column; justify-content:flex-end; padding:5vh 6vw; z-index:20; }
+  #caption.on { display:flex; }
+  #caption .c-src { color:#9aa1b2; font-size:3.2vh; margin-bottom:1.5vh; }
+  #caption .c-tgt { font-size:var(--cap, 6vh); font-weight:600; line-height:1.3; }
+  #caption .c-close { position:absolute; top:16px; right:16px; background:#222; color:#fff; border-color:#444; }
+  #caption .c-size { position:absolute; top:16px; left:16px; display:flex; gap:6px; }
+  #caption .c-size button { background:#222; color:#fff; border-color:#444; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lingua<span>Live</span> · 即時 AI 翻譯</h1>
+  <div class="status"><span class="dot" id="dot"></span><span id="statusText">檢查伺服器…</span></div>
+</header>
+
+<main>
+  <section class="panel" id="controls">
+    <h2>模式</h2>
+    <div class="seg" id="modeSeg">
+      <button data-mode="speech" class="on">🎙 演講字幕</button>
+      <button data-mode="convo">💬 雙人對話</button>
+      <button data-mode="text">⌨️ 文字</button>
+    </div>
+
+    <div class="row" style="margin-top:6px">
+      <div>
+        <label for="srcLang" id="srcLabel">來源語言</label>
+        <select id="srcLang"></select>
+      </div>
+      <button id="swap" title="交換語言" style="margin-bottom:1px">⇄</button>
+      <div>
+        <label for="tgtLang" id="tgtLabel">目標語言</label>
+        <select id="tgtLang"></select>
+      </div>
+    </div>
+
+    <div id="speechCtl">
+      <button class="big primary" id="micBtn">● 開始聆聽</button>
+    </div>
+    <div id="convoCtl" style="display:none">
+      <div class="talk">
+        <button class="ta" id="talkA">A 說話</button>
+        <button class="tb" id="talkB">B 說話</button>
+      </div>
+      <div class="hint">按一下開始，再按一下結束。A 使用來源語言，B 使用目標語言，翻譯互相對調。</div>
+    </div>
+
+    <label class="check"><input type="checkbox" id="tts"> 自動朗讀翻譯 (TTS)</label>
+    <label class="check"><input type="checkbox" id="showSrc" checked> 顯示原文</label>
+
+    <label for="glossary">專有名詞表（選填，一行一條：原文 = 譯文）</label>
+    <textarea id="glossary" placeholder="TrendRadar = TrendRadar&#10;招標 = tender"></textarea>
+    <div class="hint">語音辨識使用瀏覽器內建 Web Speech API（建議 Chrome / Edge / Safari）。翻譯由 Claude 串流生成。</div>
+  </section>
+
+  <section class="panel">
+    <div class="warn" id="warn"></div>
+    <div class="toolbar">
+      <strong class="grow">即時逐字稿</strong>
+      <button id="captionBtn">🖥 全螢幕字幕</button>
+      <button id="exportTxt">⬇ TXT</button>
+      <button id="exportSrt">⬇ SRT</button>
+      <button id="clearBtn">清除</button>
+    </div>
+    <div id="feed"><div class="empty" id="empty">按「開始聆聽」並說話，翻譯會即時出現在這裡。</div></div>
+    <div class="interim" id="interim"></div>
+    <div class="text-in" id="textCtl" style="display:none">
+      <textarea id="textIn" placeholder="輸入要翻譯的文字，Enter 送出（Shift+Enter 換行）"></textarea>
+      <button class="primary" id="sendText">翻譯</button>
+    </div>
+  </section>
+</main>
+
+<div id="caption">
+  <div class="c-size"><button id="capMinus">A−</button><button id="capPlus">A+</button></div>
+  <button class="c-close" id="capClose">✕ 關閉 (Esc)</button>
+  <div class="c-src" id="capSrc"></div>
+  <div class="c-tgt" id="capTgt">等待語音…</div>
+</div>
+
+<script>
+// ---------- Languages: [speech-recognition BCP-47, display name, name sent to the model] ----------
+const LANGS = [
+  ["zh-TW","繁體中文（台灣）","Traditional Chinese (Taiwan)"],
+  ["zh-HK","粵語（香港）","Cantonese / Traditional Chinese (Hong Kong)"],
+  ["zh-CN","简体中文","Simplified Chinese"],
+  ["en-US","English (US)","English"],
+  ["en-GB","English (UK)","British English"],
+  ["vi-VN","Tiếng Việt","Vietnamese"],
+  ["ja-JP","日本語","Japanese"],
+  ["ko-KR","한국어","Korean"],
+  ["th-TH","ไทย","Thai"],
+  ["id-ID","Bahasa Indonesia","Indonesian"],
+  ["ms-MY","Bahasa Melayu","Malay"],
+  ["fil-PH","Filipino","Filipino"],
+  ["hi-IN","हिन्दी","Hindi"],
+  ["fr-FR","Français","French"],
+  ["de-DE","Deutsch","German"],
+  ["es-ES","Español","Spanish"],
+  ["pt-BR","Português (BR)","Brazilian Portuguese"],
+  ["it-IT","Italiano","Italian"],
+  ["ru-RU","Русский","Russian"],
+  ["ar-SA","العربية","Arabic"],
+  ["tr-TR","Türkçe","Turkish"],
+];
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("ll_" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("ll_" + k, JSON.stringify(v)); } catch {} },
+};
+const langName = (code) => (LANGS.find(l => l[0] === code) || [code, code, code])[2];
+const langLabel = (code) => (LANGS.find(l => l[0] === code) || [code, code])[1];
+
+for (const sel of [$("srcLang"), $("tgtLang")]) {
+  for (const [code, label] of LANGS) sel.add(new Option(label, code));
+}
+$("srcLang").value = store.get("src", "zh-TW");
+$("tgtLang").value = store.get("tgt", "en-US");
+$("tts").checked = store.get("tts", false);
+$("showSrc").checked = store.get("showSrc", true);
+$("glossary").value = store.get("glossary", "");
+for (const id of ["srcLang","tgtLang"]) $(id).onchange = () => { store.set(id === "srcLang" ? "src" : "tgt", $(id).value); updateTalkLabels(); restartIfListening(); };
+$("tts").onchange = () => store.set("tts", $("tts").checked);
+$("showSrc").onchange = () => { store.set("showSrc", $("showSrc").checked); document.querySelectorAll(".card .src").forEach(e => e.style.display = $("showSrc").checked ? "" : "none"); };
+$("glossary").oninput = () => store.set("glossary", $("glossary").value);
+$("swap").onclick = () => { const s = $("srcLang").value; $("srcLang").value = $("tgtLang").value; $("tgtLang").value = s; $("srcLang").onchange(); store.set("tgt", $("tgtLang").value); };
+
+// ---------- Server health ----------
+fetch("/api/health").then(r => r.json()).then(h => {
+  $("dot").className = "dot " + (h.credentials ? "ok" : "");
+  $("statusText").textContent = h.credentials ? "已連線 · " + h.model : "伺服器缺少 ANTHROPIC_API_KEY";
+  if (!h.credentials) showWarn("伺服器未設定 ANTHROPIC_API_KEY，翻譯會失敗。請在啟動前設定環境變數。");
+}).catch(() => { $("statusText").textContent = "無法連線伺服器"; });
+
+function showWarn(msg) { $("warn").textContent = msg; $("warn").style.display = "block"; }
+
+// ---------- Mode ----------
+let mode = store.get("mode", "speech");
+function setMode(m) {
+  mode = m; store.set("mode", m); stopListening();
+  document.querySelectorAll("#modeSeg button").forEach(b => b.classList.toggle("on", b.dataset.mode === m));
+  $("speechCtl").style.display = m === "speech" ? "" : "none";
+  $("convoCtl").style.display = m === "convo" ? "" : "none";
+  $("textCtl").style.display = m === "text" ? "flex" : "none";
+  $("srcLabel").textContent = m === "convo" ? "A 的語言" : "來源語言";
+  $("tgtLabel").textContent = m === "convo" ? "B 的語言" : "目標語言";
+  updateTalkLabels();
+}
+document.querySelectorAll("#modeSeg button").forEach(b => b.onclick = () => setMode(b.dataset.mode));
+function updateTalkLabels() {
+  $("talkA").textContent = (activeSpeaker === "A" ? "■ 停止 · " : "🎙 A · ") + langLabel($("srcLang").value);
+  $("talkB").textContent = (activeSpeaker === "B" ? "■ 停止 · " : "🎙 B · ") + langLabel($("tgtLang").value);
+}
+
+// ---------- Speech recognition ----------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SR) showWarn("此瀏覽器不支援語音辨識（Web Speech API）。請使用 Chrome、Edge 或 Safari，或改用「文字」模式。");
+let rec = null, listening = false, activeSpeaker = null; // speaker: "A" | "B"
+
+function startListening(speaker) {
+  if (!SR) return;
+  activeSpeaker = speaker;
+  const lang = speaker === "B" ? $("tgtLang").value : $("srcLang").value;
+  rec = new SR();
+  rec.lang = lang; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+  rec.onresult = (ev) => {
+    let interim = "";
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const r = ev.results[i];
+      if (r.isFinal) { const t = r[0].transcript.trim(); if (t) addSegment(t, speaker); }
+      else interim += r[0].transcript;
+    }
+    $("interim").textContent = interim;
+    if (interim && $("caption").classList.contains("on")) $("capSrc").textContent = interim;
+  };
+  rec.onerror = (e) => {
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") { showWarn("麥克風權限被拒絕，請在瀏覽器網址列允許麥克風。"); stopListening(); }
+  };
+  rec.onend = () => { if (listening && rec) { try { rec.start(); } catch {} } }; // Chrome stops after silence: auto-restart
+  listening = true;
+  try { rec.start(); } catch {}
+  renderListening();
+}
+function stopListening() {
+  listening = false;
+  if (rec) { const r = rec; rec = null; try { r.stop(); } catch {} }
+  activeSpeaker = null; $("interim").textContent = ""; renderListening();
+}
+function restartIfListening() { if (listening) { const s = activeSpeaker; stopListening(); startListening(s); } }
+function renderListening() {
+  const mic = $("micBtn");
+  mic.className = "big " + (listening && mode === "speech" ? "rec" : "primary");
+  mic.textContent = listening && mode === "speech" ? "■ 停止聆聽" : "● 開始聆聽";
+  $("talkA").classList.toggle("rec", activeSpeaker === "A");
+  $("talkB").classList.toggle("rec", activeSpeaker === "B");
+  updateTalkLabels();
+  $("dot").classList.toggle("live", listening);
+}
+$("micBtn").onclick = () => listening ? stopListening() : startListening("A");
+for (const s of ["A","B"]) $("talk" + s).onclick = () => {
+  const was = activeSpeaker; stopListening(); if (was !== s) startListening(s);
+};
+
+// ---------- Segments & translation ----------
+const segments = store.get("segments", []);
+let sessionStart = store.get("sessionStart", Date.now());
+const ttsQueue = [];
+
+function addSegment(text, speaker) {
+  const fromCode = speaker === "B" ? $("tgtLang").value : (mode === "text" ? "auto" : $("srcLang").value);
+  const toCode = speaker === "B" ? $("srcLang").value : $("tgtLang").value;
+  if (!segments.length) { sessionStart = Date.now(); store.set("sessionStart", sessionStart); }
+  const seg = { id: Date.now() + Math.random(), t: Date.now(), speaker: mode === "convo" ? speaker : null,
+    from: fromCode, to: toCode, src: text, tgt: "", state: "pending" };
+  segments.push(seg);
+  renderCard(seg);
+  translate(seg);
+}
+
+async function translate(seg) {
+  const context = segments.filter(s => s.state === "done" && s !== seg).slice(-6).map(s => ({ source: s.src, translation: s.tgt }));
+  seg.tgt = ""; seg.state = "pending"; updateCard(seg);
+  try {
+    const res = await fetch("/api/translate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: seg.src, source_lang: seg.from === "auto" ? "auto" : langName(seg.from),
+        target_lang: langName(seg.to), context, glossary: $("glossary").value }),
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const block = buf.slice(0, i); buf = buf.slice(i + 2);
+        const ev = (block.match(/^event: (.*)$/m) || [])[1];
+        const data = JSON.parse((block.match(/^data: (.*)$/m) || [, "{}"])[1]);
+        if (ev === "delta") { seg.tgt += data.text; updateCard(seg); }
+        else if (ev === "error") { seg.state = "error"; seg.err = data.message; }
+        else if (ev === "done") { seg.state = "done"; }
+      }
+    }
+    if (seg.state === "pending") seg.state = "done";
+  } catch (e) { seg.state = "error"; seg.err = "翻譯失敗：" + e.message; }
+  updateCard(seg); persist();
+  if (seg.state === "done" && seg.tgt && $("tts").checked) speak(seg.tgt, seg.to);
+}
+
+function persist() { store.set("segments", segments.slice(-300).map(({ err, ...s }) => s)); }
+
+function renderCard(seg) {
+  $("empty")?.remove();
+  const el = document.createElement("div");
+  el.className = "card" + (seg.speaker ? " " + seg.speaker : ""); el.id = "c" + seg.id;
+  el.innerHTML = `<div class="meta"><span class="who"></span><span class="time"></span>
+    <span class="acts"><button data-a="speak" title="朗讀">🔊</button><button data-a="copy" title="複製">⧉</button><button data-a="retry" title="重新翻譯">↻</button></span></div>
+    <div class="src"></div><div class="tgt"></div>`;
+  el.querySelector(".who").textContent = (seg.speaker ? seg.speaker + " · " : "") + (seg.from === "auto" ? "自動偵測" : langLabel(seg.from)) + " → " + langLabel(seg.to);
+  el.querySelector(".time").textContent = new Date(seg.t).toLocaleTimeString();
+  el.querySelector(".src").textContent = seg.src;
+  el.querySelector(".src").style.display = $("showSrc").checked ? "" : "none";
+  el.querySelector('[data-a="speak"]').onclick = () => speak(seg.tgt, seg.to, true);
+  el.querySelector('[data-a="copy"]').onclick = () => navigator.clipboard?.writeText(seg.tgt);
+  el.querySelector('[data-a="retry"]').onclick = () => translate(seg);
+  $("feed").appendChild(el);
+  updateCard(seg);
+}
+function updateCard(seg) {
+  const el = $("c" + seg.id); if (!el) return;
+  const tgt = el.querySelector(".tgt");
+  tgt.className = "tgt" + (seg.state === "pending" ? " caret" : "") + (seg.state === "error" ? " err" : "");
+  tgt.textContent = seg.state === "error" ? (seg.err || "錯誤") : seg.tgt;
+  const feed = $("feed"); feed.scrollTop = feed.scrollHeight;
+  if ($("caption").classList.contains("on") && seg === segments[segments.length - 1]) {
+    $("capSrc").textContent = seg.src; $("capTgt").textContent = seg.tgt || "…";
+  }
+}
+
+// ---------- Text-to-speech ----------
+let speaking = false;
+function speak(text, lang, now) {
+  if (!("speechSynthesis" in window) || !text) return;
+  if (now) { speechSynthesis.cancel(); ttsQueue.length = 0; speaking = false; }
+  ttsQueue.push([text, lang]); if (!speaking) nextTts();
+}
+function nextTts() {
+  const item = ttsQueue.shift(); if (!item) { speaking = false; return; }
+  speaking = true;
+  const u = new SpeechSynthesisUtterance(item[0]); u.lang = item[1];
+  const voice = speechSynthesis.getVoices().find(v => v.lang === item[1]) || speechSynthesis.getVoices().find(v => v.lang.startsWith(item[1].split("-")[0]));
+  if (voice) u.voice = voice;
+  u.onend = u.onerror = nextTts;
+  speechSynthesis.speak(u);
+}
+
+// ---------- Text mode ----------
+function sendText() { const t = $("textIn").value.trim(); if (!t) return; $("textIn").value = ""; addSegment(t, "A"); }
+$("sendText").onclick = sendText;
+$("textIn").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendText(); } };
+
+// ---------- Caption mode ----------
+let capSize = store.get("capSize", 6);
+document.documentElement.style.setProperty("--cap", capSize + "vh");
+$("captionBtn").onclick = () => { $("caption").classList.add("on"); document.documentElement.requestFullscreen?.().catch(() => {});
+  const last = segments[segments.length - 1]; if (last) { $("capSrc").textContent = last.src; $("capTgt").textContent = last.tgt; } };
+function closeCaption() { $("caption").classList.remove("on"); if (document.fullscreenElement) document.exitFullscreen(); }
+$("capClose").onclick = closeCaption;
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeCaption(); });
+for (const [id, d] of [["capMinus", -1], ["capPlus", 1]]) $(id).onclick = () => {
+  capSize = Math.max(3, Math.min(14, capSize + d)); store.set("capSize", capSize);
+  document.documentElement.style.setProperty("--cap", capSize + "vh");
+};
+
+// ---------- Export / clear ----------
+function download(name, text) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+  a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+const stamp = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+$("exportTxt").onclick = () => download(`translation-${stamp()}.txt`, segments.map(s =>
+  `[${new Date(s.t).toLocaleTimeString()}]${s.speaker ? " " + s.speaker : ""}\n${s.src}\n${s.tgt}\n`).join("\n"));
+$("exportSrt").onclick = () => {
+  const fmt = (ms) => { ms = Math.max(0, ms); const h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60;
+    return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")},${String(ms % 1000).padStart(3,"0")}`; };
+  const t0 = segments[0]?.t || 0;
+  download(`subtitles-${stamp()}.srt`, segments.map((s, i) => {
+    const start = s.t - t0, end = (segments[i + 1] ? segments[i + 1].t - t0 : start + 4000);
+    return `${i + 1}\n${fmt(start)} --> ${fmt(Math.max(end - 100, start + 800))}\n${s.tgt}\n`;
+  }).join("\n"));
+};
+$("clearBtn").onclick = () => { if (!confirm("清除所有逐字稿？")) return; segments.length = 0; persist();
+  $("feed").innerHTML = '<div class="empty" id="empty">已清除。</div>'; };
+
+// ---------- Init ----------
+setMode(mode);
+for (const s of segments) { if (s.state === "pending") s.state = "error", s.err = "（已中斷，按 ↻ 重新翻譯）"; renderCard(s); }
+</script>
+</body>
+</html>
