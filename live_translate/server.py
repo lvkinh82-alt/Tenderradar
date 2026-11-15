@@ -6,7 +6,12 @@ translation back from Claude over Server-Sent Events.
 Run:
     pip install -r live_translate/requirements.txt
     export ANTHROPIC_API_KEY=sk-ant-...
+    python -m live_translate.invites add "名字"   # create an invite code first
     python -m live_translate.server        # http://localhost:8765
+
+Every translation needs a valid invite code (header X-Invite-Code), so only the
+people you give a code to spend your API credit. Set LIVE_TRANSLATE_REQUIRE_INVITE=0
+to turn the check off (e.g. for purely local use).
 """
 
 from __future__ import annotations
@@ -14,17 +19,27 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
 
 import anthropic
-from fastapi import FastAPI
+from fastapi import FastAPI, Header
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from . import invites
+
 MODEL = os.environ.get("LIVE_TRANSLATE_MODEL", "claude-opus-5-5")
 EFFORT = os.environ.get("LIVE_TRANSLATE_EFFORT", "low")  # low = fastest
 STATIC_DIR = Path(__file__).parent / "static"
+REQUIRE_INVITE = os.environ.get("LIVE_TRANSLATE_REQUIRE_INVITE", "1") != "0"
+
+INVITE_ERRORS = {
+    "missing": (401, "請先輸入邀請碼才能開始翻譯。"),
+    "invalid": (401, "邀請碼不正確，請確認後重新輸入。"),
+    "disabled": (403, "這個邀請碼已停用，請聯絡提供邀請碼的人。"),
+    "limit": (429, "今天的翻譯次數已用完，明天再來吧！"),
+}
 
 SYSTEM_PROMPT = """You are a real-time interpreter embedded in a live translation app.
 You receive one spoken or typed segment at a time and return ONLY its translation.
@@ -107,7 +122,10 @@ def sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-def stream_claude(system: str, user_message: str) -> Iterator[str]:
+def stream_claude(
+    system: str, user_message: str, on_usage: Callable[[int, int], None] | None = None
+) -> Iterator[str]:
+    tokens_in = tokens_out = 0
     try:
         with client().beta.messages.stream(
             model=MODEL,
@@ -121,6 +139,10 @@ def stream_claude(system: str, user_message: str) -> Iterator[str]:
             for text in stream.text_stream:
                 yield sse("delta", {"text": text})
             final = stream.get_final_message()
+        tokens_in = final.usage.input_tokens + (final.usage.cache_creation_input_tokens or 0) + (
+            final.usage.cache_read_input_tokens or 0
+        )
+        tokens_out = final.usage.output_tokens
         if final.stop_reason == "refusal":
             yield sse("error", {"message": "The model declined to translate this segment."})
         else:
@@ -134,6 +156,11 @@ def stream_claude(system: str, user_message: str) -> Iterator[str]:
         yield sse("error", {"message": f"API error {e.status_code}: {e.message}"})
     except anthropic.APIConnectionError:
         yield sse("error", {"message": "Network error contacting the translation API."})
+    finally:
+        # only count requests that actually used API credit, so server-side
+        # failures don't eat into a friend's daily limit
+        if on_usage and (tokens_in or tokens_out):
+            on_usage(tokens_in, tokens_out)
 
 
 def sse_response(events: Iterator[str]) -> StreamingResponse:
@@ -144,25 +171,53 @@ def sse_response(events: Iterator[str]) -> StreamingResponse:
     )
 
 
+def gate(code: str | None) -> tuple[JSONResponse | None, Callable[[int, int], None] | None]:
+    """Reject requests without a usable invite code; otherwise return a usage recorder."""
+    if not REQUIRE_INVITE:
+        return None, None
+    res = invites.check(code)
+    if res.status != "ok":
+        status, message = INVITE_ERRORS[res.status]
+        return JSONResponse({"error": res.status, "message": message}, status_code=status), None
+    assert code is not None
+    return None, lambda i, o: invites.record(code, i, o)
+
+
 @app.post("/api/translate")
-def translate(req: TranslateRequest):
-    return sse_response(stream_claude(SYSTEM_PROMPT, build_user_message(req)))
+def translate(req: TranslateRequest, x_invite_code: str | None = Header(default=None)):
+    denied, on_usage = gate(x_invite_code)
+    if denied:
+        return denied
+    return sse_response(stream_claude(SYSTEM_PROMPT, build_user_message(req), on_usage))
 
 
 @app.post("/api/explain")
-def explain(req: ExplainRequest):
+def explain(req: ExplainRequest, x_invite_code: str | None = Header(default=None)):
+    denied, on_usage = gate(x_invite_code)
+    if denied:
+        return denied
     msg = (
         f"<original>\n{req.text.strip()}\n</original>\n"
         f"<translation target=\"{req.target_lang}\">\n{req.translation.strip()}\n</translation>\n"
         f"Explanation language: {req.explain_lang}"
     )
-    return sse_response(stream_claude(EXPLAIN_PROMPT, msg))
+    return sse_response(stream_claude(EXPLAIN_PROMPT, msg, on_usage))
 
 
 @app.get("/api/health")
-def health():
+def health(x_invite_code: str | None = Header(default=None)):
     has_key = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
-    return JSONResponse({"ok": True, "model": MODEL, "credentials": has_key})
+    body: dict = {"ok": True, "model": MODEL, "credentials": has_key, "invite_required": REQUIRE_INVITE}
+    if REQUIRE_INVITE:
+        res = invites.check(x_invite_code)
+        body["invite"] = res.status
+        if res.status in ("ok", "limit"):
+            body["invite_name"] = res.name
+            body["used_today"] = res.used_today
+            body["daily_limit"] = res.daily_limit
+        if res.status != "ok":
+            body["invite_message"] = INVITE_ERRORS[res.status][1]
+    return JSONResponse(body)
 
 
 @app.get("/")
@@ -187,6 +242,8 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 def main() -> None:
     import uvicorn
 
+    if REQUIRE_INVITE and not invites.any_codes():
+        print('提醒：還沒有任何邀請碼，所有翻譯都會被拒絕。先執行：python -m live_translate.invites add "名字"')
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "8765"))
     uvicorn.run(app, host=host, port=port)

@@ -120,6 +120,17 @@ export default function Home() {
         }}
       />
 
+      {!settings.invite.trim() && (
+        <Pressable
+          onPress={() => router.push("/settings")}
+          style={[s.banner, { backgroundColor: c.chip, borderColor: c.accent }]}
+          accessibilityRole="button"
+        >
+          <Text style={{ color: c.ink, fontWeight: "600" }}>🔑 請先輸入邀請碼才能開始翻譯</Text>
+          <Text style={{ color: c.accent, fontWeight: "700" }}>前往設定 ›</Text>
+        </Pressable>
+      )}
+
       {/* mode switch */}
       <View style={[s.seg, { backgroundColor: c.chip }]}>
         {MODES.map((m) => (
@@ -269,6 +280,7 @@ export default function Home() {
 
 const s = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  banner: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginHorizontal: 12, marginTop: 12, padding: 12, borderRadius: 12, borderWidth: 1 },
   seg: { flexDirection: "row", margin: 12, marginBottom: 8, padding: 4, borderRadius: 12 },
   segBtn: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 9 },
   langRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12 },

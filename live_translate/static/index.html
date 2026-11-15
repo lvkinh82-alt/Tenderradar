@@ -106,7 +106,15 @@
 
 <main>
   <section class="panel" id="controls">
-    <h2>模式</h2>
+    <div id="inviteBox">
+      <h2>邀請碼</h2>
+      <div class="row" style="align-items:center">
+        <div><input type="text" id="invite" placeholder="MT-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
+        <button id="inviteSave">確認</button>
+      </div>
+      <div class="hint" id="inviteStatus"></div>
+    </div>
+    <h2 style="margin-top:14px">模式</h2>
     <div class="seg" id="modeSeg">
       <button data-mode="speech" class="on">🎙 演講字幕</button>
       <button data-mode="convo">💬 雙人對話</button>
@@ -259,12 +267,32 @@ $("showSrc").onchange = () => { store.set("showSrc", $("showSrc").checked); docu
 $("glossary").oninput = () => store.set("glossary", $("glossary").value);
 $("swap").onclick = () => { const s = $("srcLang").value; $("srcLang").value = $("tgtLang").value; $("tgtLang").value = s; $("srcLang").onchange(); store.set("tgt", $("tgtLang").value); };
 
-// ---------- Server health ----------
-fetch("/api/health").then(r => r.json()).then(h => {
-  $("dot").className = "dot " + (h.credentials ? "ok" : "");
-  $("statusText").textContent = h.credentials ? "已連線 · " + h.model : "伺服器缺少 ANTHROPIC_API_KEY";
-  if (!h.credentials) showWarn("伺服器未設定 ANTHROPIC_API_KEY，翻譯會失敗。請在啟動前設定環境變數。");
-}).catch(() => { $("statusText").textContent = "無法連線伺服器"; });
+// ---------- Invite code + server health ----------
+const inviteCode = () => ($("invite").value || "").trim().toUpperCase();
+$("invite").value = store.get("invite", "");
+function checkServer() {
+  return fetch("/api/health", { headers: { "X-Invite-Code": inviteCode() } }).then(r => r.json()).then(h => {
+    $("warn").style.display = "none";
+    const inviteOk = !h.invite_required || h.invite === "ok";
+    $("dot").className = "dot " + (h.credentials && inviteOk ? "ok" : "");
+    $("statusText").textContent = !h.credentials ? "伺服器缺少 ANTHROPIC_API_KEY" : inviteOk ? "已連線 · " + h.model : "需要邀請碼";
+    if (!h.credentials) showWarn("伺服器未設定 ANTHROPIC_API_KEY，翻譯會失敗。請在啟動前設定環境變數。");
+    $("inviteBox").style.display = h.invite_required ? "" : "none";
+    if (!h.invite_required) return;
+    const st = $("inviteStatus");
+    if (h.invite === "ok") {
+      st.style.color = "var(--accent)";
+      st.textContent = `✓ ${h.invite_name}，歡迎使用` + (h.daily_limit ? `（今天已用 ${h.used_today} / ${h.daily_limit} 次）` : "");
+    } else {
+      st.style.color = "var(--danger)";
+      st.textContent = h.invite_message || "請輸入邀請碼";
+      if (h.invite !== "missing") showWarn(h.invite_message);
+    }
+  }).catch(() => { $("statusText").textContent = "無法連線伺服器"; });
+}
+$("inviteSave").onclick = () => { $("invite").value = inviteCode(); store.set("invite", inviteCode()); checkServer(); };
+$("invite").onkeydown = (e) => { if (e.key === "Enter") $("inviteSave").onclick(); };
+checkServer();
 
 function showWarn(msg) { $("warn").textContent = msg; $("warn").style.display = "block"; }
 
@@ -355,8 +383,13 @@ function addSegment(text, speaker) {
 }
 
 async function streamSSE(url, payload, onDelta) {
-  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-  if (!res.ok) throw new Error("HTTP " + res.status);
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "X-Invite-Code": inviteCode() }, body: JSON.stringify(payload) });
+  if (!res.ok) {
+    let msg = "HTTP " + res.status;
+    try { msg = (await res.json()).message || msg; } catch {}
+    if (res.status === 401 || res.status === 403 || res.status === 429) checkServer();
+    throw new Error(msg);
+  }
   const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
   for (;;) {
     const { value, done } = await reader.read(); if (done) break;

@@ -5,19 +5,34 @@ import { fetch } from "expo/fetch";
 export type ContextPair = { source: string; translation: string };
 
 /** POST JSON and stream Server-Sent Events; calls onDelta for each text chunk. */
+const base = (serverUrl: string) => serverUrl.trim().replace(/\/+$/, "");
+
+export type Server = { url: string; invite: string };
+
+const inviteHeader = (invite: string) => ({ "X-Invite-Code": invite.trim().toUpperCase() });
+
 async function streamSSE(
-  url: string,
+  server: Server,
+  path: string,
   payload: unknown,
   onDelta: (text: string) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(url, {
+  const res = await fetch(`${base(server.url)}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...inviteHeader(server.invite) },
     body: JSON.stringify(payload),
     signal,
   });
-  if (!res.ok) throw new Error(`伺服器回應 HTTP ${res.status}`);
+  if (!res.ok) {
+    let message = `伺服器回應 HTTP ${res.status}`;
+    try {
+      message = ((await res.json()) as { message?: string }).message ?? message;
+    } catch {
+      // not JSON: keep the HTTP status message
+    }
+    throw new Error(message);
+  }
   if (!res.body) throw new Error("伺服器沒有回傳內容");
 
   const reader = res.body.getReader();
@@ -41,10 +56,8 @@ async function streamSSE(
   }
 }
 
-const base = (serverUrl: string) => serverUrl.trim().replace(/\/+$/, "");
-
 export function translate(
-  serverUrl: string,
+  server: Server,
   req: {
     text: string;
     source_lang: string;
@@ -56,19 +69,30 @@ export function translate(
   onDelta: (t: string) => void,
   signal?: AbortSignal,
 ) {
-  return streamSSE(`${base(serverUrl)}/api/translate`, req, onDelta, signal);
+  return streamSSE(server, "/api/translate", req, onDelta, signal);
 }
 
 export function explain(
-  serverUrl: string,
+  server: Server,
   req: { text: string; translation: string; target_lang: string; explain_lang: string },
   onDelta: (t: string) => void,
 ) {
-  return streamSSE(`${base(serverUrl)}/api/explain`, req, onDelta);
+  return streamSSE(server, "/api/explain", req, onDelta);
 }
 
-export async function checkHealth(serverUrl: string): Promise<{ model: string; credentials: boolean }> {
-  const res = await fetch(`${base(serverUrl)}/api/health`);
+export type Health = {
+  model: string;
+  credentials: boolean;
+  invite_required?: boolean;
+  invite?: "ok" | "missing" | "invalid" | "disabled" | "limit";
+  invite_name?: string;
+  invite_message?: string;
+  used_today?: number;
+  daily_limit?: number;
+};
+
+export async function checkHealth(server: Server): Promise<Health> {
+  const res = await fetch(`${base(server.url)}/api/health`, { headers: inviteHeader(server.invite) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as { model: string; credentials: boolean };
+  return (await res.json()) as Health;
 }

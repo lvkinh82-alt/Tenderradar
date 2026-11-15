@@ -25,8 +25,14 @@ export default function Settings() {
   const test = async () => {
     setStatus("連線中…");
     try {
-      const h = await checkHealth(settings.serverUrl);
-      setStatus(h.credentials ? `✓ 已連線 · ${h.model}` : "⚠️ 已連線，但伺服器沒有設定 ANTHROPIC_API_KEY");
+      const h = await checkHealth({ url: settings.serverUrl, invite: settings.invite });
+      if (!h.credentials) setStatus("⚠️ 已連線，但伺服器沒有設定 ANTHROPIC_API_KEY");
+      else if (h.invite_required && h.invite !== "ok") setStatus(`⚠️ ${h.invite_message ?? "邀請碼無法使用"}`);
+      else {
+        const who = h.invite_name ? `${h.invite_name}，` : "";
+        const quota = h.daily_limit ? `（今天已用 ${h.used_today} / ${h.daily_limit} 次）` : "";
+        setStatus(`✓ ${who}已連線，可以開始翻譯${quota}`);
+      }
     } catch (e) {
       setStatus(`✕ 無法連線：${e instanceof Error ? e.message : String(e)}`);
     }
@@ -38,7 +44,7 @@ export default function Settings() {
       return;
     }
     const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
-    const file = new File(Paths.cache, `lingualive-${stamp}.${kind}`);
+    const file = new File(Paths.cache, `muoitu-${stamp}.${kind}`);
     if (file.exists) file.delete();
     file.create();
     file.write(kind === "txt" ? toTxt(segments) : toSrt(segments));
@@ -59,12 +65,22 @@ export default function Settings() {
           placeholderTextColor={c.muted}
           style={[s.input, { color: c.ink, borderColor: c.line, backgroundColor: c.bg }]}
         />
+        <Text style={[s.h, { color: c.muted, marginTop: 14 }]}>邀請碼</Text>
+        <TextInput
+          value={settings.invite}
+          onChangeText={(v) => update({ invite: v.toUpperCase() })}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          placeholder="MT-XXXX-XXXX"
+          placeholderTextColor={c.muted}
+          style={[s.input, { color: c.ink, borderColor: c.line, backgroundColor: c.bg, letterSpacing: 1 }]}
+        />
         <Pressable onPress={test} style={[s.btn, { backgroundColor: c.accent }]}>
           <Text style={{ color: c.accentInk, fontWeight: "700" }}>測試連線</Text>
         </Pressable>
         {status && <Text style={{ color: c.ink, marginTop: 8 }}>{status}</Text>}
         <Text style={[s.hint, { color: c.muted }]}>
-          執行 live_translate/server.py 的電腦網址。同一個 Wi-Fi 下可用 http://電腦IP:8765（伺服器要用 HOST=0.0.0.0 啟動）；正式使用請部署成 HTTPS。
+          伺服器網址和邀請碼由提供 App 的人給你。（架設者：同一個 Wi-Fi 下可用 http://電腦IP:8765，伺服器要用 HOST=0.0.0.0 啟動；正式使用請部署成 HTTPS。）
         </Text>
       </View>
 

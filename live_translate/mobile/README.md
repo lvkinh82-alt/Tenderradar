@@ -31,7 +31,9 @@ export ANTHROPIC_API_KEY=sk-ant-...
 HOST=0.0.0.0 python -m live_translate.server      # 手機要連，所以用 0.0.0.0
 ```
 
-在 App 的 ⚙️ 設定 → 翻譯伺服器，填入 `http://電腦的區網IP:8765`，按「測試連線」。
+為每位親友建立邀請碼：`python -m live_translate.invites add "名字"`（詳見上一層 README 的「邀請碼」）。
+
+在 App 的 ⚙️ 設定填入伺服器網址 `http://電腦的區網IP:8765` 和邀請碼，按「測試連線」。
 正式發佈請把伺服器部署到雲端並使用 HTTPS（例如 `https://translate.example.com`）。
 
 ## 2. 在手機上執行（開發版）

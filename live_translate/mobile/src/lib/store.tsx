@@ -23,6 +23,7 @@ export type Segment = {
 
 export type Settings = {
   serverUrl: string;
+  invite: string;
   src: string;
   tgt: string;
   style: Style;
@@ -34,6 +35,7 @@ export type Settings = {
 
 const DEFAULTS: Settings = {
   serverUrl: "http://192.168.1.10:8765",
+  invite: "",
   src: "zh-TW",
   tgt: "en-US",
   style: "natural",
@@ -121,7 +123,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let out = "";
       try {
         await api.translate(
-          st.serverUrl,
+          { url: st.serverUrl, invite: st.invite },
           {
             text: seg.src,
             source_lang: langName(seg.from),
@@ -190,7 +192,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       patch(id, { explaining: true, explanation: "" });
       try {
         await api.explain(
-          settingsRef.current.serverUrl,
+          { url: settingsRef.current.serverUrl, invite: settingsRef.current.invite },
           {
             text: seg.src,
             translation: seg.tgt,

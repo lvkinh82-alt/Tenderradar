@@ -34,9 +34,29 @@
 ```bash
 pip install -r live_translate/requirements.txt
 export ANTHROPIC_API_KEY=sk-ant-...
+python -m live_translate.invites add "我自己"   # 先建立一個邀請碼
 python -m live_translate.server
 # 開啟 http://localhost:8765 （請用 Chrome / Edge / Safari）
 ```
+
+## 邀請碼（只給親友使用，費用由你負擔）
+
+所有翻譯都要有效的邀請碼，伺服器才會呼叫 Claude；沒有碼的人就算知道網址也用不了你的 API 額度。
+
+```bash
+python -m live_translate.invites add "阿明"                  # 建立邀請碼（不限次數）
+python -m live_translate.invites add "小美" --daily-limit 300  # 每天最多 300 次
+python -m live_translate.invites list                          # 每個碼的用量與估計費用
+python -m live_translate.invites disable MT-XXXX-XXXX          # 停用（例如手機遺失）
+python -m live_translate.invites enable  MT-XXXX-XXXX          # 重新啟用
+python -m live_translate.invites limit   MT-XXXX-XXXX 500      # 修改每日上限（0 = 不限）
+python -m live_translate.invites delete  MT-XXXX-XXXX          # 刪除
+```
+
+- 朋友在網頁版左側「邀請碼」欄位，或 App 的「⚙️ 設定 → 邀請碼」輸入一次即可，之後會記住。
+- 邀請碼存在 `live_translate/data/invites.db`（不會進 Git）。伺服器失敗的請求不會扣次數。
+- 建議另外在 Anthropic Console 設定每月花費上限。
+- 純自己本機使用、不想要邀請碼：`LIVE_TRANSLATE_REQUIRE_INVITE=0`。
 
 環境變數：
 
@@ -46,6 +66,9 @@ python -m live_translate.server
 | `LIVE_TRANSLATE_MODEL` | `claude-opus-5-5` | 翻譯模型 |
 | `LIVE_TRANSLATE_EFFORT` | `low` | `low` 最快；`medium`/`high` 品質更高但較慢 |
 | `HOST` / `PORT` | `127.0.0.1` / `8765` | 伺服器位址 |
+| `LIVE_TRANSLATE_REQUIRE_INVITE` | `1` | `0` = 不檢查邀請碼 |
+| `LIVE_TRANSLATE_DB` | `live_translate/data/invites.db` | 邀請碼資料庫位置 |
+| `LIVE_TRANSLATE_PRICE_IN` / `_OUT` | `4` / `20` | 估計費用用的單價（美元 / 百萬 token） |
 
 > 麥克風需要 HTTPS 或 `localhost`。要讓手機在區網使用，請放在 HTTPS 反向代理之後。
 > 伺服器端啟用了 Claude 的 server-side fallback：模型拒絕某段內容時自動改由備援模型翻譯。
