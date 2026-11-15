@@ -287,7 +287,7 @@
 
     <div class="group">
       <h3>聲音</h3>
-      <label class="item switch"><span>翻譯好自動唸出來</span><input type="checkbox" id="tts"></label>
+      <label class="item switch"><span>「聽我說」「兩個人對話」翻好馬上唸出來</span><input type="checkbox" id="tts"></label>
       <label class="item switch"><span>「拍給 AI 看」每次都用語音回答</span><input type="checkbox" id="voiceReply"></label>
     </div>
 
@@ -411,13 +411,13 @@ let mode = "home";
 for (const sel of [$("srcLang"), $("tgtLang")]) for (const [code, label] of LANGS) sel.add(new Option(label, code));
 $("srcLang").value = store.get("src", "zh-TW");
 $("tgtLang").value = store.get("tgt", "en-US");
-$("tts").checked = store.get("tts", false);
+$("tts").checked = store.get("autoSpeak", true);
 $("voiceReply").checked = store.get("voiceReply", true);
 $("showSrc").checked = store.get("showSrc", true);
 $("glossary").value = store.get("glossary", "");
 $("style").value = store.get("style", "natural");
 $("style").onchange = () => store.set("style", $("style").value);
-$("tts").onchange = () => store.set("tts", $("tts").checked);
+$("tts").onchange = () => { store.set("autoSpeak", $("tts").checked); if (!$("tts").checked) window.speechSynthesis?.cancel(); };
 $("voiceReply").onchange = () => { store.set("voiceReply", $("voiceReply").checked); if (!$("voiceReply").checked) window.speechSynthesis?.cancel(); };
 $("showSrc").onchange = () => { store.set("showSrc", $("showSrc").checked); renderFeed(); };
 $("glossary").oninput = () => store.set("glossary", $("glossary").value);
@@ -512,13 +512,13 @@ function startListening(speaker) {
     if (interim && $("caption").classList.contains("on")) $("capSrc").textContent = interim;
   };
   rec.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") { showWarn("麥克風被擋住了：請在瀏覽器允許使用麥克風。"); stopListening(); } };
-  rec.onend = () => { if (listening && rec) { try { rec.start(); } catch {} } };
+  rec.onend = () => { if (listening && rec && !micPausedForTts) { try { rec.start(); } catch {} } };
   listening = true;
   try { rec.start(); } catch {}
   renderListening();
 }
 function stopListening() {
-  listening = false;
+  listening = false; micPausedForTts = false;
   if (rec) { const r = rec; rec = null; try { r.stop(); } catch {} }
   activeSpeaker = null; setInterim(""); renderListening();
 }
@@ -528,7 +528,8 @@ function renderListening() {
   const on = listening && mode === "speech";
   $("micBtn").className = "big" + (on ? " rec" : "");
   $("micBtn").textContent = on ? "■ 停止" : "🎙 開始聽";
-  $("micHint").textContent = on ? "正在聽…說完一句就會自動翻譯" : "按一下開始，說完一句就會自動翻譯";
+  $("micHint").textContent = !on ? "按一下開始，說完一句就會自動翻譯"
+    : micPausedForTts ? "🔊 正在唸翻譯…唸完會繼續聽" : "正在聽…說完一句就會自動翻譯";
   $("talkA").classList.toggle("rec", activeSpeaker === "A");
   $("talkB").classList.toggle("rec", activeSpeaker === "B");
   updateTalkLabels();
@@ -588,7 +589,8 @@ async function translate(seg) {
     seg.state = "done";
   } catch (e) { seg.state = "error"; seg.err = "翻譯失敗：" + e.message; }
   updateCard(seg); persist();
-  if (seg.state === "done" && seg.tgt && $("tts").checked) speak(seg.tgt, seg.to);
+  // 聽我說 / 兩個人對話: read the translation aloud as soon as it's ready
+  if (seg.state === "done" && seg.tgt && !seg.compose && (mode === "speech" || mode === "convo") && $("tts").checked) speak(seg.tgt, seg.to);
   if (seg.state === "done" && seg.compose && navigator.clipboard) {
     navigator.clipboard.writeText(seg.tgt).then(() => toast("✓ 已複製，到聊天軟體貼上就好"), () => {});
   }
@@ -663,7 +665,22 @@ function updateCard(seg) {
 }
 
 // ===================== text-to-speech =====================
-let speaking = false, ttsUnlocked = false;
+let speaking = false, ttsUnlocked = false, current = null;
+// While a translation is read aloud the microphone would hear it and translate it again,
+// so live listening pauses during speech and resumes when the queue is empty.
+let micPausedForTts = false;
+function pauseMicForTts() {
+  if (!listening || !rec || micPausedForTts) return;
+  micPausedForTts = true; setInterim("");
+  try { rec.abort(); } catch {}
+  renderListening();
+}
+function resumeMicAfterTts() {
+  if (!micPausedForTts) return;
+  micPausedForTts = false;
+  if (listening && rec) { try { rec.start(); } catch {} }
+  renderListening();
+}
 function unlockTts() { // iOS only lets a page speak after a tap: speak a silent utterance on the first one
   if (ttsUnlocked || !("speechSynthesis" in window)) return;
   ttsUnlocked = true;
@@ -671,17 +688,19 @@ function unlockTts() { // iOS only lets a page speak after a tap: speak a silent
 }
 function speak(text, lang, now) {
   if (!("speechSynthesis" in window) || !text) return;
-  if (now) { speechSynthesis.cancel(); ttsQueue.length = 0; speaking = false; }
+  if (mode === "speech" || mode === "convo") pauseMicForTts();
+  if (now) { current = null; speechSynthesis.cancel(); ttsQueue.length = 0; speaking = false; }
   ttsQueue.push([text, lang]); if (!speaking) nextTts();
 }
 function nextTts() {
-  const item = ttsQueue.shift(); if (!item) { speaking = false; return; }
+  const item = ttsQueue.shift(); if (!item) { speaking = false; resumeMicAfterTts(); return; }
   speaking = true;
   const u = new SpeechSynthesisUtterance(item[0]); u.lang = item[1];
   const voices = speechSynthesis.getVoices();
   const voice = voices.find(v => v.lang === item[1]) || voices.find(v => v.lang.startsWith(item[1].split("-")[0]));
   if (voice) u.voice = voice;
-  u.onend = u.onerror = nextTts;
+  current = u;
+  u.onend = u.onerror = () => { if (current === u) nextTts(); }; // ignore late events from cancelled utterances
   speechSynthesis.speak(u);
 }
 
