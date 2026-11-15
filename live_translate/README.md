@@ -80,12 +80,12 @@ python3 -m live_translate.invites delete  MT-XXXX-XXXX          # 刪除
 | 變數 | 預設 | 說明 |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | 必填 |
-| `LIVE_TRANSLATE_MODEL` | `claude-opus-5-5` | 翻譯模型 |
+| `LIVE_TRANSLATE_MODEL` | `claude-opus-5-5` | 翻譯模型；省錢可用 `claude-haiku-5-5`（約便宜 40 倍），折衷可用 `claude-sonnet-5-5` |
 | `LIVE_TRANSLATE_EFFORT` | `low` | `low` 最快；`medium`/`high` 品質更高但較慢 |
 | `HOST` / `PORT` | `127.0.0.1` / `8765` | 伺服器位址 |
 | `LIVE_TRANSLATE_REQUIRE_INVITE` | `1` | `0` = 不檢查邀請碼 |
 | `LIVE_TRANSLATE_DB` | `live_translate/data/invites.db` | 邀請碼資料庫位置 |
-| `LIVE_TRANSLATE_PRICE_IN` / `_OUT` | `4` / `20` | 估計費用用的單價（美元 / 百萬 token） |
+| `LIVE_TRANSLATE_PRICE_IN` / `_OUT` | 依模型自動 | 估計費用用的單價（美元 / 百萬 token） |
 
 > 麥克風需要 HTTPS 或 `localhost`。要讓手機在區網使用，請放在 HTTPS 反向代理之後。
 > 伺服器端啟用了 Claude 的 server-side fallback：模型拒絕某段內容時自動改由備援模型翻譯。

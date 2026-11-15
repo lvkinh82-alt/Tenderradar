@@ -27,9 +27,17 @@ from pathlib import Path
 DB_PATH = Path(os.environ.get("LIVE_TRANSLATE_DB", Path(__file__).parent / "data" / "invites.db"))
 # Letters/digits that can't be confused when read aloud or typed (no 0/O, 1/I/L).
 ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
-# USD per million tokens, for the cost estimate in `list` (Claude Opus 5.5 by default).
-PRICE_IN = float(os.environ.get("LIVE_TRANSLATE_PRICE_IN", "4"))
-PRICE_OUT = float(os.environ.get("LIVE_TRANSLATE_PRICE_OUT", "20"))
+# USD per million tokens (input, output), for the cost estimate in `list`.
+# Haiku 5.5's price applies to prompts up to 100K tokens, which translation requests always are.
+MODEL_PRICES = {
+    "claude-opus-5-5": (4.0, 20.0),
+    "claude-sonnet-5-5": (2.0, 10.0),
+    "claude-haiku-5-5": (0.10, 0.50),
+}
+_model = os.environ.get("LIVE_TRANSLATE_MODEL", "claude-opus-5-5")
+_default_in, _default_out = MODEL_PRICES.get(_model, MODEL_PRICES["claude-opus-5-5"])
+PRICE_IN = float(os.environ.get("LIVE_TRANSLATE_PRICE_IN", _default_in))
+PRICE_OUT = float(os.environ.get("LIVE_TRANSLATE_PRICE_OUT", _default_out))
 
 _lock = threading.Lock()
 
@@ -235,7 +243,7 @@ def main(argv: list[str] | None = None) -> None:
             st = "啟用" if r["active"] else "停用"
             print(f"{r['code']:<14} {r['name']:<10} {st:<4} {lim_s:<10} {r['total_requests']:>8} {'$' + format(r['cost_usd'], '.3f'):>10}")
         total = sum(r["cost_usd"] for r in rows)
-        print(f"\n全部估計費用：${total:.3f}（以每百萬 token 輸入 ${PRICE_IN:g} / 輸出 ${PRICE_OUT:g} 計算）")
+        print(f"\n全部估計費用：${total:.3f}（{_model}，以每百萬 token 輸入 ${PRICE_IN:g} / 輸出 ${PRICE_OUT:g} 計算）")
     else:
         fn = {
             "disable": lambda: set_active(args.code, False),

@@ -32,6 +32,9 @@ from . import invites
 MODEL = os.environ.get("LIVE_TRANSLATE_MODEL", "claude-opus-5-5")
 EFFORT = os.environ.get("LIVE_TRANSLATE_EFFORT", "low")  # low = fastest
 STATIC_DIR = Path(__file__).parent / "static"
+# Models that accept the server-side refusal fallback. Others (e.g. claude-haiku-5-5)
+# reject the parameter, so they are called without it.
+FALLBACK_MODELS = {"claude-fable-5-2", "claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5"}
 REQUIRE_INVITE = os.environ.get("LIVE_TRANSLATE_REQUIRE_INVITE", "1") != "0"
 
 INVITE_ERRORS = {
@@ -127,15 +130,20 @@ def stream_claude(
 ) -> Iterator[str]:
     tokens_in = tokens_out = 0
     try:
-        with client().beta.messages.stream(
+        params = dict(
             model=MODEL,
             max_tokens=4000,
             system=system,
             output_config={"effort": EFFORT},
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
             messages=[{"role": "user", "content": user_message}],
-        ) as stream:
+        )
+        if MODEL in FALLBACK_MODELS:
+            stream_ctx = client().beta.messages.stream(
+                **params, betas=["server-side-fallback-2026-07-01"], fallbacks="default"
+            )
+        else:
+            stream_ctx = client().messages.stream(**params)
+        with stream_ctx as stream:
             for text in stream.text_stream:
                 yield sse("delta", {"text": text})
             final = stream.get_final_message()
