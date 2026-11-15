@@ -36,7 +36,26 @@ Rules:
   infer the intended meaning and add natural punctuation in the target language.
 - Use the recent conversation context (if given) to keep terminology and pronouns consistent.
 - If the segment is already in the target language, return it lightly cleaned up.
-- If the segment is empty noise (e.g. "um", "uh"), return an empty string."""
+- If the segment is empty noise (e.g. "um", "uh"), return an empty string.
+- Internet slang, memes and idioms: translate the meaning and the vibe, choosing an
+  equivalent expression a native speaker would actually use, not a literal rendering.
+- Follow the requested style when one is given."""
+
+STYLES = {
+    "natural": "Natural, faithful translation in a neutral register.",
+    "casual": "Casual and friendly, like texting a friend. Contractions and everyday words are fine.",
+    "formal": "Formal and polite, suitable for business email or official communication.",
+    "social": "Native social-media voice: the slang, abbreviations and emoji habits a young native "
+              "speaker would use on TikTok / Instagram / X. Keep it short and punchy.",
+    "business": "Professional business register; precise terminology, concise.",
+}
+
+EXPLAIN_PROMPT = """You are a friendly language coach. The user saw a sentence and its translation.
+Explain, in the requested explanation language, briefly and in plain text (no markdown headings):
+1. Any slang, idioms, memes, abbreviations or cultural references in the original, and what they really mean.
+2. Tone / vibe of the original (e.g. joking, sarcastic, polite, flirty).
+3. One or two alternative ways to say it in the target language, with when to use each.
+Keep it under 150 words. If there is nothing notable, say so in one sentence and give the alternatives."""
 
 app = FastAPI(title="LinguaLive")
 _client: anthropic.Anthropic | None = None
@@ -60,6 +79,14 @@ class TranslateRequest(BaseModel):
     target_lang: str
     context: list[ContextPair] = Field(default_factory=list, max_length=10)
     glossary: str = Field("", max_length=4000)
+    style: str = "natural"
+
+
+class ExplainRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=4000)
+    translation: str = Field("", max_length=8000)
+    target_lang: str
+    explain_lang: str = "Traditional Chinese"
 
 
 def build_user_message(req: TranslateRequest) -> str:
@@ -71,6 +98,7 @@ def build_user_message(req: TranslateRequest) -> str:
         parts.append("<glossary>\n" + req.glossary.strip() + "\n</glossary>")
     src = "auto-detect" if req.source_lang == "auto" else req.source_lang
     parts.append(f"Source language: {src}\nTarget language: {req.target_lang}")
+    parts.append("Style: " + STYLES.get(req.style, STYLES["natural"]))
     parts.append("<segment>\n" + req.text.strip() + "\n</segment>")
     return "\n\n".join(parts)
 
@@ -79,16 +107,16 @@ def sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-def stream_translation(req: TranslateRequest) -> Iterator[str]:
+def stream_claude(system: str, user_message: str) -> Iterator[str]:
     try:
         with client().beta.messages.stream(
             model=MODEL,
             max_tokens=4000,
-            system=SYSTEM_PROMPT,
+            system=system,
             output_config={"effort": EFFORT},
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",
-            messages=[{"role": "user", "content": build_user_message(req)}],
+            messages=[{"role": "user", "content": user_message}],
         ) as stream:
             for text in stream.text_stream:
                 yield sse("delta", {"text": text})
@@ -108,13 +136,27 @@ def stream_translation(req: TranslateRequest) -> Iterator[str]:
         yield sse("error", {"message": "Network error contacting the translation API."})
 
 
-@app.post("/api/translate")
-def translate(req: TranslateRequest):
+def sse_response(events: Iterator[str]) -> StreamingResponse:
     return StreamingResponse(
-        stream_translation(req),
+        events,
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/api/translate")
+def translate(req: TranslateRequest):
+    return sse_response(stream_claude(SYSTEM_PROMPT, build_user_message(req)))
+
+
+@app.post("/api/explain")
+def explain(req: ExplainRequest):
+    msg = (
+        f"<original>\n{req.text.strip()}\n</original>\n"
+        f"<translation target=\"{req.target_lang}\">\n{req.translation.strip()}\n</translation>\n"
+        f"Explanation language: {req.explain_lang}"
+    )
+    return sse_response(stream_claude(EXPLAIN_PROMPT, msg))
 
 
 @app.get("/api/health")
@@ -126,6 +168,17 @@ def health():
 @app.get("/")
 def index():
     return FileResponse(STATIC_DIR / "index.html")
+
+
+# PWA files must be served from the root so the service worker can control "/".
+@app.get("/manifest.webmanifest")
+def manifest():
+    return FileResponse(STATIC_DIR / "manifest.webmanifest", media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+def service_worker():
+    return FileResponse(STATIC_DIR / "sw.js", media_type="text/javascript")
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

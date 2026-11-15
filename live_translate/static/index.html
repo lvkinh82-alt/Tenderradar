@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LinguaLive 即時翻譯</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icon-180.png">
+<meta name="theme-color" content="#7c3aed">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <style>
   :root {
     --bg: #f6f7fb; --panel: #ffffff; --ink: #1b1f2a; --muted: #6b7385;
@@ -59,6 +64,21 @@
   .card .tgt.err { color:var(--danger); font-size:14px; }
   .card .acts { margin-left:auto; display:flex; gap:4px; }
   .card .acts button { padding:2px 8px; font-size:12px; }
+  .card .explain { margin-top:8px; padding:8px 10px; border-radius:8px; background:var(--panel); border:1px dashed var(--line); font-size:14px; white-space:pre-wrap; }
+  @media (max-width: 600px) {
+    header { padding:10px 16px; }
+    header h1 { font-size:16px; white-space:nowrap; }
+    #statusText { display:none; }
+    main { padding:12px; gap:12px; }
+    .panel { padding:12px; }
+    .toolbar strong.grow { flex:1 1 100%; }
+    .toolbar button { flex:1; padding:7px 6px; font-size:13px; }
+    .card .meta { flex-wrap:wrap; }
+    .card .acts { margin-left:0; width:100%; justify-content:flex-end; }
+    #feed { max-height:none; min-height:200px; }
+  }
+  .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:10px 16px; border-radius:10px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:30; }
+  .toast.on { opacity:.95; }
   .interim { color:var(--interim); font-style:italic; min-height:24px; padding:6px 2px; }
   .caret::after { content:"▍"; animation:pulse 1s infinite; color:var(--accent); }
   .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
@@ -91,6 +111,7 @@
       <button data-mode="speech" class="on">🎙 演講字幕</button>
       <button data-mode="convo">💬 雙人對話</button>
       <button data-mode="text">⌨️ 文字</button>
+      <button data-mode="compose">✍️ 社群</button>
     </div>
 
     <div class="row" style="margin-top:6px">
@@ -104,6 +125,15 @@
         <select id="tgtLang"></select>
       </div>
     </div>
+
+    <label for="style">翻譯風格</label>
+    <select id="style">
+      <option value="natural">自然（忠實原意）</option>
+      <option value="casual">輕鬆口語（像跟朋友聊天）</option>
+      <option value="social">社群道地（網路用語 / 流行語）</option>
+      <option value="formal">正式禮貌</option>
+      <option value="business">商務專業</option>
+    </select>
 
     <div id="speechCtl">
       <button class="big primary" id="micBtn">● 開始聆聽</button>
@@ -121,6 +151,7 @@
 
     <label for="glossary">專有名詞表（選填，一行一條：原文 = 譯文）</label>
     <textarea id="glossary" placeholder="TrendRadar = TrendRadar&#10;招標 = tender"></textarea>
+    <button id="installBtn" style="display:none;width:100%;margin-top:12px">📲 安裝到手機 / 桌面</button>
     <div class="hint">語音辨識使用瀏覽器內建 Web Speech API（建議 Chrome / Edge / Safari）。翻譯由 Claude 串流生成。</div>
   </section>
 
@@ -142,6 +173,7 @@
   </section>
 </main>
 
+<div class="toast" id="toast"></div>
 <div id="caption">
   <div class="c-size"><button id="capMinus">A−</button><button id="capPlus">A+</button></div>
   <button class="c-close" id="capClose">✕ 關閉 (Esc)</button>
@@ -155,7 +187,7 @@ const LANGS = [
   ["zh-TW","繁體中文（台灣）","Traditional Chinese (Taiwan)"],
   ["zh-HK","粵語（香港）","Cantonese / Traditional Chinese (Hong Kong)"],
   ["zh-CN","简体中文","Simplified Chinese"],
-  ["en-US","English (US)","English"],
+  ["en-US","English (US)","American English"],
   ["en-GB","English (UK)","British English"],
   ["vi-VN","Tiếng Việt","Vietnamese"],
   ["ja-JP","日本語","Japanese"],
@@ -164,15 +196,44 @@ const LANGS = [
   ["id-ID","Bahasa Indonesia","Indonesian"],
   ["ms-MY","Bahasa Melayu","Malay"],
   ["fil-PH","Filipino","Filipino"],
+  ["km-KH","ខ្មែរ","Khmer"],
+  ["lo-LA","ລາວ","Lao"],
+  ["my-MM","မြန်မာ","Burmese"],
   ["hi-IN","हिन्दी","Hindi"],
+  ["bn-BD","বাংলা","Bengali"],
+  ["ur-PK","اردو","Urdu"],
+  ["ta-IN","தமிழ்","Tamil"],
+  ["ne-NP","नेपाली","Nepali"],
   ["fr-FR","Français","French"],
   ["de-DE","Deutsch","German"],
-  ["es-ES","Español","Spanish"],
+  ["es-ES","Español (España)","Spanish (Spain)"],
+  ["es-MX","Español (México)","Mexican Spanish"],
   ["pt-BR","Português (BR)","Brazilian Portuguese"],
+  ["pt-PT","Português (PT)","European Portuguese"],
   ["it-IT","Italiano","Italian"],
+  ["nl-NL","Nederlands","Dutch"],
+  ["sv-SE","Svenska","Swedish"],
+  ["nb-NO","Norsk","Norwegian"],
+  ["da-DK","Dansk","Danish"],
+  ["fi-FI","Suomi","Finnish"],
+  ["pl-PL","Polski","Polish"],
+  ["cs-CZ","Čeština","Czech"],
+  ["sk-SK","Slovenčina","Slovak"],
+  ["hu-HU","Magyar","Hungarian"],
+  ["ro-RO","Română","Romanian"],
+  ["bg-BG","Български","Bulgarian"],
+  ["el-GR","Ελληνικά","Greek"],
+  ["uk-UA","Українська","Ukrainian"],
   ["ru-RU","Русский","Russian"],
-  ["ar-SA","العربية","Arabic"],
   ["tr-TR","Türkçe","Turkish"],
+  ["ar-SA","العربية","Arabic"],
+  ["he-IL","עברית","Hebrew"],
+  ["fa-IR","فارسی","Persian"],
+  ["sw-KE","Kiswahili","Swahili"],
+  ["af-ZA","Afrikaans","Afrikaans"],
+  ["zu-ZA","isiZulu","Zulu"],
+  ["am-ET","አማርኛ","Amharic"],
+  ["wo-SN","Wolof","Wolof"],
 ];
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -190,6 +251,8 @@ $("tgtLang").value = store.get("tgt", "en-US");
 $("tts").checked = store.get("tts", false);
 $("showSrc").checked = store.get("showSrc", true);
 $("glossary").value = store.get("glossary", "");
+$("style").value = store.get("style", "natural");
+$("style").onchange = () => store.set("style", $("style").value);
 for (const id of ["srcLang","tgtLang"]) $(id).onchange = () => { store.set(id === "srcLang" ? "src" : "tgt", $(id).value); updateTalkLabels(); restartIfListening(); };
 $("tts").onchange = () => store.set("tts", $("tts").checked);
 $("showSrc").onchange = () => { store.set("showSrc", $("showSrc").checked); document.querySelectorAll(".card .src").forEach(e => e.style.display = $("showSrc").checked ? "" : "none"); };
@@ -212,7 +275,10 @@ function setMode(m) {
   document.querySelectorAll("#modeSeg button").forEach(b => b.classList.toggle("on", b.dataset.mode === m));
   $("speechCtl").style.display = m === "speech" ? "" : "none";
   $("convoCtl").style.display = m === "convo" ? "" : "none";
-  $("textCtl").style.display = m === "text" ? "flex" : "none";
+  $("textCtl").style.display = (m === "text" || m === "compose") ? "flex" : "none";
+  $("textIn").placeholder = m === "compose"
+    ? "用你的語言寫訊息 / 貼文，翻譯後自動複製，直接貼到 IG、TikTok、WhatsApp、Discord…"
+    : "輸入要翻譯的文字，Enter 送出（Shift+Enter 換行）";
   $("srcLabel").textContent = m === "convo" ? "A 的語言" : "來源語言";
   $("tgtLabel").textContent = m === "convo" ? "B 的語言" : "目標語言";
   updateTalkLabels();
@@ -282,40 +348,46 @@ function addSegment(text, speaker) {
   const toCode = speaker === "B" ? $("srcLang").value : $("tgtLang").value;
   if (!segments.length) { sessionStart = Date.now(); store.set("sessionStart", sessionStart); }
   const seg = { id: Date.now() + Math.random(), t: Date.now(), speaker: mode === "convo" ? speaker : null,
-    from: fromCode, to: toCode, src: text, tgt: "", state: "pending" };
+    from: fromCode, to: toCode, src: text, tgt: "", state: "pending", compose: mode === "compose" };
   segments.push(seg);
   renderCard(seg);
   translate(seg);
 }
 
+async function streamSSE(url, payload, onDelta) {
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read(); if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf("\n\n")) >= 0) {
+      const block = buf.slice(0, i); buf = buf.slice(i + 2);
+      const ev = (block.match(/^event: (.*)$/m) || [])[1];
+      const data = JSON.parse((block.match(/^data: (.*)$/m) || [, "{}"])[1]);
+      if (ev === "delta") onDelta(data.text);
+      else if (ev === "error") throw new Error(data.message);
+    }
+  }
+}
+
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("on"), 2200); }
+
 async function translate(seg) {
   const context = segments.filter(s => s.state === "done" && s !== seg).slice(-6).map(s => ({ source: s.src, translation: s.tgt }));
   seg.tgt = ""; seg.state = "pending"; updateCard(seg);
   try {
-    const res = await fetch("/api/translate", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: seg.src, source_lang: seg.from === "auto" ? "auto" : langName(seg.from),
-        target_lang: langName(seg.to), context, glossary: $("glossary").value }),
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
-    for (;;) {
-      const { value, done } = await reader.read(); if (done) break;
-      buf += dec.decode(value, { stream: true });
-      let i;
-      while ((i = buf.indexOf("\n\n")) >= 0) {
-        const block = buf.slice(0, i); buf = buf.slice(i + 2);
-        const ev = (block.match(/^event: (.*)$/m) || [])[1];
-        const data = JSON.parse((block.match(/^data: (.*)$/m) || [, "{}"])[1]);
-        if (ev === "delta") { seg.tgt += data.text; updateCard(seg); }
-        else if (ev === "error") { seg.state = "error"; seg.err = data.message; }
-        else if (ev === "done") { seg.state = "done"; }
-      }
-    }
-    if (seg.state === "pending") seg.state = "done";
+    await streamSSE("/api/translate", { text: seg.src, source_lang: seg.from === "auto" ? "auto" : langName(seg.from),
+      target_lang: langName(seg.to), context, glossary: $("glossary").value, style: $("style").value },
+      (t) => { seg.tgt += t; updateCard(seg); });
+    seg.state = "done";
   } catch (e) { seg.state = "error"; seg.err = "翻譯失敗：" + e.message; }
   updateCard(seg); persist();
   if (seg.state === "done" && seg.tgt && $("tts").checked) speak(seg.tgt, seg.to);
+  if (seg.state === "done" && seg.compose && navigator.clipboard) {
+    navigator.clipboard.writeText(seg.tgt).then(() => toast("✓ 已複製譯文，直接貼到聊天或貼文即可"), () => {});
+  }
 }
 
 function persist() { store.set("segments", segments.slice(-300).map(({ err, ...s }) => s)); }
@@ -325,18 +397,33 @@ function renderCard(seg) {
   const el = document.createElement("div");
   el.className = "card" + (seg.speaker ? " " + seg.speaker : ""); el.id = "c" + seg.id;
   el.innerHTML = `<div class="meta"><span class="who"></span><span class="time"></span>
-    <span class="acts"><button data-a="speak" title="朗讀">🔊</button><button data-a="copy" title="複製">⧉</button><button data-a="retry" title="重新翻譯">↻</button></span></div>
-    <div class="src"></div><div class="tgt"></div>`;
+    <span class="acts"><button data-a="speak" title="朗讀">🔊</button><button data-a="copy" title="複製">⧉</button><button data-a="explain" title="解釋俚語 / 語氣">📖</button><button data-a="share" title="分享">📤</button><button data-a="retry" title="重新翻譯">↻</button></span></div>
+    <div class="src"></div><div class="tgt"></div><div class="explain" style="display:none"></div>`;
   el.querySelector(".who").textContent = (seg.speaker ? seg.speaker + " · " : "") + (seg.from === "auto" ? "自動偵測" : langLabel(seg.from)) + " → " + langLabel(seg.to);
   el.querySelector(".time").textContent = new Date(seg.t).toLocaleTimeString();
   el.querySelector(".src").textContent = seg.src;
   el.querySelector(".src").style.display = $("showSrc").checked ? "" : "none";
   el.querySelector('[data-a="speak"]').onclick = () => speak(seg.tgt, seg.to, true);
-  el.querySelector('[data-a="copy"]').onclick = () => navigator.clipboard?.writeText(seg.tgt);
+  el.querySelector('[data-a="copy"]').onclick = () => navigator.clipboard?.writeText(seg.tgt).then(() => toast("✓ 已複製"));
+  el.querySelector('[data-a="share"]').onclick = () => navigator.share
+    ? navigator.share({ text: seg.tgt }).catch(() => {})
+    : navigator.clipboard?.writeText(seg.tgt).then(() => toast("✓ 已複製（此瀏覽器不支援分享）"));
+  el.querySelector('[data-a="explain"]').onclick = () => explain(seg, el.querySelector(".explain"));
   el.querySelector('[data-a="retry"]').onclick = () => translate(seg);
   $("feed").appendChild(el);
   updateCard(seg);
 }
+async function explain(seg, box) {
+  if (box.style.display !== "none" && box.dataset.done) { box.style.display = "none"; return; }
+  box.style.display = ""; box.textContent = ""; box.classList.add("caret"); delete box.dataset.done;
+  try {
+    await streamSSE("/api/explain", { text: seg.src, translation: seg.tgt, target_lang: langName(seg.to),
+      explain_lang: langName($("srcLang").value) }, (t) => { box.textContent += t; });
+    box.dataset.done = "1";
+  } catch (e) { box.textContent = "解釋失敗：" + e.message; }
+  box.classList.remove("caret");
+}
+
 function updateCard(seg) {
   const el = $("c" + seg.id); if (!el) return;
   const tgt = el.querySelector(".tgt");
@@ -402,6 +489,12 @@ $("exportSrt").onclick = () => {
 };
 $("clearBtn").onclick = () => { if (!confirm("清除所有逐字稿？")) return; segments.length = 0; persist();
   $("feed").innerHTML = '<div class="empty" id="empty">已清除。</div>'; };
+
+// ---------- Installable app (PWA) ----------
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; $("installBtn").style.display = ""; });
+$("installBtn").onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; $("installBtn").style.display = "none"; };
 
 // ---------- Init ----------
 setMode(mode);
