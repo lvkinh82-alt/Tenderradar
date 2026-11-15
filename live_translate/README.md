@@ -29,13 +29,29 @@
 句子 + 譯文 → POST /api/explain → Claude → 俚語 / 語氣解釋
 ```
 
-## 啟動
+## Mac 快速開始（最簡單）
+
+在「終端機」裡執行（一行一行貼上，**不要貼 `#` 後面的說明文字**）：
 
 ```bash
-pip install -r live_translate/requirements.txt
+cd ~/Downloads/live_translate
+./setup-mac.sh
+./invite.sh add "阿明" --code TUMUOI-1954
+ANTHROPIC_API_KEY=sk-ant-你的金鑰 ./start.sh
+```
+
+- `cd` 那一行請換成你解壓縮 `live_translate` 資料夾的位置（可以打 `cd ` 加一個空格，再把資料夾拖進終端機視窗）。
+- Mac 上的指令是 `python3`，不是 `python`；用上面的腳本就不用管這件事。
+- 如果 `./setup-mac.sh` 說找不到 python3，先到 https://www.python.org/downloads/ 安裝。
+- 之後每次要用，只要執行最後一行 `./start.sh`；管理邀請碼用 `./invite.sh list`、`./invite.sh disable 碼`。
+
+## 啟動（手動）
+
+```bash
+pip3 install -r live_translate/requirements.txt
 export ANTHROPIC_API_KEY=sk-ant-...
-python -m live_translate.invites add "我自己"   # 先建立一個邀請碼
-python -m live_translate.server
+python3 -m live_translate.invites add "我自己"   # 先建立一個邀請碼
+python3 -m live_translate.server
 # 開啟 http://localhost:8765 （請用 Chrome / Edge / Safari）
 ```
 
@@ -44,13 +60,14 @@ python -m live_translate.server
 所有翻譯都要有效的邀請碼，伺服器才會呼叫 Claude；沒有碼的人就算知道網址也用不了你的 API 額度。
 
 ```bash
-python -m live_translate.invites add "阿明"                  # 建立邀請碼（不限次數）
-python -m live_translate.invites add "小美" --daily-limit 300  # 每天最多 300 次
-python -m live_translate.invites list                          # 每個碼的用量與估計費用
-python -m live_translate.invites disable MT-XXXX-XXXX          # 停用（例如手機遺失）
-python -m live_translate.invites enable  MT-XXXX-XXXX          # 重新啟用
-python -m live_translate.invites limit   MT-XXXX-XXXX 500      # 修改每日上限（0 = 不限）
-python -m live_translate.invites delete  MT-XXXX-XXXX          # 刪除
+python3 -m live_translate.invites add "阿明"                  # 建立邀請碼（不限次數）
+python3 -m live_translate.invites add "小美" --daily-limit 300  # 每天最多 300 次
+python3 -m live_translate.invites add "阿明" --code TUMUOI-1954  # 自己指定邀請碼
+python3 -m live_translate.invites list                          # 每個碼的用量與估計費用
+python3 -m live_translate.invites disable MT-XXXX-XXXX          # 停用（例如手機遺失）
+python3 -m live_translate.invites enable  MT-XXXX-XXXX          # 重新啟用
+python3 -m live_translate.invites limit   MT-XXXX-XXXX 500      # 修改每日上限（0 = 不限）
+python3 -m live_translate.invites delete  MT-XXXX-XXXX          # 刪除
 ```
 
 - 朋友在網頁版左側「邀請碼」欄位，或 App 的「⚙️ 設定 → 邀請碼」輸入一次即可，之後會記住。

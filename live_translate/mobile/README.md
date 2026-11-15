@@ -26,12 +26,12 @@ API 金鑰只放在伺服器，不會打包進 App。
 ## 1. 啟動翻譯伺服器
 
 ```bash
-pip install -r live_translate/requirements.txt
+pip3 install -r live_translate/requirements.txt
 export ANTHROPIC_API_KEY=sk-ant-...
-HOST=0.0.0.0 python -m live_translate.server      # 手機要連，所以用 0.0.0.0
+HOST=0.0.0.0 python3 -m live_translate.server      # 手機要連，所以用 0.0.0.0
 ```
 
-為每位親友建立邀請碼：`python -m live_translate.invites add "名字"`（詳見上一層 README 的「邀請碼」）。
+為每位親友建立邀請碼：`python3 -m live_translate.invites add "名字"`（詳見上一層 README 的「邀請碼」）。
 
 在 App 的 ⚙️ 設定填入伺服器網址 `http://電腦的區網IP:8765` 和邀請碼，按「測試連線」。
 正式發佈請把伺服器部署到雲端並使用 HTTPS（例如 `https://translate.example.com`）。

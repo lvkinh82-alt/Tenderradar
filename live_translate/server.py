@@ -4,10 +4,10 @@ Browser captures speech (Web Speech API) -> this server streams the
 translation back from Claude over Server-Sent Events.
 
 Run:
-    pip install -r live_translate/requirements.txt
+    pip3 install -r live_translate/requirements.txt
     export ANTHROPIC_API_KEY=sk-ant-...
-    python -m live_translate.invites add "名字"   # create an invite code first
-    python -m live_translate.server        # http://localhost:8765
+    python3 -m live_translate.invites add "名字"   # create an invite code first
+    python3 -m live_translate.server        # http://localhost:8765
 
 Every translation needs a valid invite code (header X-Invite-Code), so only the
 people you give a code to spend your API credit. Set LIVE_TRANSLATE_REQUIRE_INVITE=0
@@ -243,7 +243,7 @@ def main() -> None:
     import uvicorn
 
     if REQUIRE_INVITE and not invites.any_codes():
-        print('提醒：還沒有任何邀請碼，所有翻譯都會被拒絕。先執行：python -m live_translate.invites add "名字"')
+        print('提醒：還沒有任何邀請碼，所有翻譯都會被拒絕。先執行：./live_translate/invite.sh add "名字"（或 python3 -m live_translate.invites add "名字"）')
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "8765"))
     uvicorn.run(app, host=host, port=port)

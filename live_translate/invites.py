@@ -3,13 +3,14 @@
 Codes and usage live in a small SQLite file (default: live_translate/data/invites.db,
 override with LIVE_TRANSLATE_DB). Manage them from the command line:
 
-    python -m live_translate.invites add "阿明"                 # new code, no daily limit
-    python -m live_translate.invites add "小美" --daily-limit 300
-    python -m live_translate.invites list                       # usage + estimated cost
-    python -m live_translate.invites disable MT-7K3Q-9XPA
-    python -m live_translate.invites enable  MT-7K3Q-9XPA
-    python -m live_translate.invites limit   MT-7K3Q-9XPA 500    # 0 = unlimited
-    python -m live_translate.invites delete  MT-7K3Q-9XPA
+    python3 -m live_translate.invites add "阿明"                 # new code, no daily limit
+    python3 -m live_translate.invites add "小美" --daily-limit 300
+    python3 -m live_translate.invites add "阿明" --code TUMUOI-1954   # choose the code yourself
+    python3 -m live_translate.invites list                       # usage + estimated cost
+    python3 -m live_translate.invites disable MT-7K3Q-9XPA
+    python3 -m live_translate.invites enable  MT-7K3Q-9XPA
+    python3 -m live_translate.invites limit   MT-7K3Q-9XPA 500    # 0 = unlimited
+    python3 -m live_translate.invites delete  MT-7K3Q-9XPA
 """
 
 from __future__ import annotations
@@ -119,7 +120,22 @@ def record(code: str, input_tokens: int = 0, output_tokens: int = 0, requests: i
         db().commit()
 
 
-def add(name: str, daily_limit: int = 0) -> str:
+def add(name: str, daily_limit: int = 0, code: str | None = None) -> str:
+    """Create a code. Pass `code` to choose it yourself; raises ValueError if taken or malformed."""
+    if code is not None:
+        code = normalize(code)
+        if not (4 <= len(code) <= 32) or not all(ch.isalnum() or ch == "-" for ch in code):
+            raise ValueError("邀請碼只能用英文字母、數字和「-」，長度 4–32 個字。")
+        with _lock:
+            try:
+                db().execute(
+                    "INSERT INTO invites (code, name, daily_limit, created_at) VALUES (?, ?, ?, ?)",
+                    (code, name, daily_limit, datetime.now().isoformat(timespec="seconds")),
+                )
+                db().commit()
+            except sqlite3.IntegrityError:
+                raise ValueError(f"邀請碼 {code} 已經存在。") from None
+        return code
     with _lock:
         while True:
             code = new_code()
@@ -185,11 +201,12 @@ def report() -> list[dict]:
 
 
 def main(argv: list[str] | None = None) -> None:
-    ap = argparse.ArgumentParser(prog="python -m live_translate.invites", description="管理 Muối Từ 邀請碼")
+    ap = argparse.ArgumentParser(prog="./invite.sh", description="管理 Muối Từ 邀請碼")
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("add", help="新增邀請碼")
     a.add_argument("name", help="這個碼是給誰的（備註）")
     a.add_argument("--daily-limit", type=int, default=0, help="每天最多翻譯幾次，0 = 不限")
+    a.add_argument("--code", help="自己指定邀請碼（例如 TUMUOI-1954）；不填就自動產生")
     sub.add_parser("list", help="列出所有邀請碼與用量")
     for cmd, h in [("disable", "停用"), ("enable", "重新啟用"), ("delete", "刪除（連同用量紀錄）")]:
         sub.add_parser(cmd, help=h).add_argument("code")
@@ -199,13 +216,18 @@ def main(argv: list[str] | None = None) -> None:
     args = ap.parse_args(argv)
 
     if args.cmd == "add":
-        code = add(args.name, args.daily_limit)
+        try:
+            code = add(args.name, args.daily_limit, args.code)
+        except ValueError as e:
+            raise SystemExit(f"無法建立：{e}")
         print(f"已建立邀請碼：{code}  （{args.name}）")
+        if args.code and sum(ch.isalnum() for ch in code) < 10:
+            print("提醒：自訂的碼比較短，別人比較容易猜到。建議設每日上限（--daily-limit），或用自動產生的碼。")
         print("把這個碼傳給對方，請他在 App 或網頁的「設定 → 邀請碼」輸入。")
     elif args.cmd == "list":
         rows = report()
         if not rows:
-            print("還沒有邀請碼。用：python -m live_translate.invites add \"名字\"")
+            print("還沒有邀請碼。用：python3 -m live_translate.invites add \"名字\"")
             return
         print(f"{'邀請碼':<14} {'名字':<10} {'狀態':<4} {'今日/上限':<10} {'累計次數':>8} {'估計費用':>10}")
         for r in rows:
