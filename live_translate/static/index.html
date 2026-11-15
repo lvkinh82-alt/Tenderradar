@@ -132,6 +132,13 @@
   @keyframes pulse { 50% { filter:brightness(1.12); } }
   .hint { text-align:center; color:var(--muted); font-size:.85rem; margin-top:8px; }
   .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .turns { display:grid; grid-template-columns:1fr auto 1fr; gap:8px; align-items:center; margin-bottom:10px; }
+  .turns .arrow { color:var(--muted); font-weight:800; }
+  .turn { border-radius:16px; padding:8px 6px; font-weight:800; font-size:1rem; line-height:1.3; min-height:60px; border:var(--edge-w) solid; opacity:.55; }
+  .turn small { display:block; font-weight:600; font-size:.8rem; }
+  .turn.A { color:var(--a); border-color:var(--a); background:var(--a-soft); }
+  .turn.B { color:var(--b); border-color:var(--b); background:var(--b-soft); }
+  .turn.on { opacity:1; border-width:3px; box-shadow:0 0 0 3px color-mix(in srgb, currentColor 25%, transparent); }
   .talk { min-height:84px; border-radius:22px; font-size:1.15rem; font-weight:800; line-height:1.3; padding:8px; }
   .talk small { display:block; font-size:.85rem; font-weight:600; opacity:.85; }
   .talk.A { background:var(--a-soft); color:var(--a); border:2px solid var(--a); }
@@ -205,7 +212,7 @@
     <div class="hello">您好！今天要做什麼？</div>
     <p class="sub">點一下下面的大按鈕就可以開始。</p>
     <div class="tiles">
-      <button class="tile main" data-go="speech"><span class="ic">🎙</span><span><b>聽我說，幫我翻譯</b><small>對著手機說話，一句一句馬上翻成另一種語言</small></span></button>
+      <button class="tile main" data-go="speech"><span class="ic">🎙</span><span><b>聽我說，幫我翻譯</b><small>你說中文就唸英文，對方說英文就唸中文，自動輪流（依你選的語言）</small></span></button>
       <button class="tile" data-go="convo"><span class="ic">💬</span><span><b>兩個人對話</b><small>你說一句、對方說一句，自動雙向翻譯</small></span></button>
       <button class="tile" data-go="vision"><span class="ic">📹</span><span><b>拍給 AI 看</b><small>用鏡頭或照片問 AI：藥盒、菜單、路牌、說明書</small></span></button>
       <button class="tile" data-go="text"><span class="ic">⌨️</span><span><b>打字翻譯</b><small>輸入任何語言的文字，自動翻譯</small></span></button>
@@ -241,6 +248,11 @@
 <div class="dock" id="dock" hidden>
   <div class="dock-in">
     <div id="dSpeech">
+      <div class="turns" id="turns">
+        <button class="turn A" id="turnA"></button>
+        <span class="arrow">⇄</span>
+        <button class="turn B" id="turnB"></button>
+      </div>
       <button class="big" id="micBtn">🎙 開始聽</button>
       <div class="hint" id="micHint">按一下開始，說完一句就會自動翻譯</div>
     </div>
@@ -288,6 +300,7 @@
     <div class="group">
       <h3>聲音</h3>
       <label class="item switch"><span>「聽我說」「兩個人對話」翻好馬上唸出來</span><input type="checkbox" id="tts"></label>
+      <label class="item switch"><span>「聽我說」雙向：一個人說完，自動換另一個人說</span><input type="checkbox" id="autoTurn"></label>
       <label class="item switch"><span>「拍給 AI 看」每次都用語音回答</span><input type="checkbox" id="voiceReply"></label>
     </div>
 
@@ -399,7 +412,7 @@ $("warn").onclick = () => show("warn", false);
 
 // ===================== the five functions =====================
 const MODES = {
-  speech:  { title: "🎙 聽我說", empty: ["按下面的綠色大按鈕，對著手機說話", "每說完一句，翻譯就會出現在這裡（最新的在最上面）"] },
+  speech:  { title: "🎙 聽我說", empty: ["按下面的綠色大按鈕，對著手機說話", "說完一句會自動翻譯並唸出來，然後換另一個人說"] },
   convo:   { title: "💬 兩個人對話", empty: ["輪到誰說話，就按下面誰的按鈕", "藍色是你，橘色是對方；翻譯會自動對調"] },
   vision:  { title: "📹 拍給 AI 看", empty: ["把鏡頭對準要問的東西，按「開口問」", "也可以按「看一下」讓 AI 說明畫面，或「上傳照片」"] },
   text:    { title: "⌨️ 打字翻譯", empty: ["在下面輸入文字，按「翻譯」", "任何語言都可以，會自動偵測"] },
@@ -413,6 +426,10 @@ $("srcLang").value = store.get("src", "zh-TW");
 $("tgtLang").value = store.get("tgt", "en-US");
 $("tts").checked = store.get("autoSpeak", true);
 $("voiceReply").checked = store.get("voiceReply", true);
+$("autoTurn").checked = store.get("autoTurn", true);
+$("autoTurn").onchange = () => { store.set("autoTurn", $("autoTurn").checked); if (mode === "speech") { stopListening(); enter("speech"); } };
+const twoWay = () => mode === "speech" && $("autoTurn").checked;
+const langOf = (sp) => sp === "B" ? $("tgtLang").value : $("srcLang").value;
 $("showSrc").checked = store.get("showSrc", true);
 $("glossary").value = store.get("glossary", "");
 $("style").value = store.get("style", "natural");
@@ -421,9 +438,9 @@ $("tts").onchange = () => { store.set("autoSpeak", $("tts").checked); if (!$("tt
 $("voiceReply").onchange = () => { store.set("voiceReply", $("voiceReply").checked); if (!$("voiceReply").checked) window.speechSynthesis?.cancel(); };
 $("showSrc").onchange = () => { store.set("showSrc", $("showSrc").checked); renderFeed(); };
 $("glossary").oninput = () => store.set("glossary", $("glossary").value);
-for (const id of ["srcLang", "tgtLang"]) $(id).onchange = () => { store.set(id === "srcLang" ? "src" : "tgt", $(id).value); updateTalkLabels(); restartIfListening(); };
+for (const id of ["srcLang", "tgtLang"]) $(id).onchange = () => { store.set(id === "srcLang" ? "src" : "tgt", $(id).value); updateTalkLabels(); restartIfListening(); renderListening(); };
 $("swap").onclick = () => { const s = $("srcLang").value; $("srcLang").value = $("tgtLang").value; $("tgtLang").value = s;
-  store.set("src", $("srcLang").value); store.set("tgt", $("tgtLang").value); updateTalkLabels(); restartIfListening(); };
+  store.set("src", $("srcLang").value); store.set("tgt", $("tgtLang").value); updateTalkLabels(); restartIfListening(); renderListening(); };
 
 function openSheet() { show("sheet", true); show("sheetBg", true); checkServer(); }
 function closeSheet() { show("sheet", false); show("sheetBg", false); }
@@ -471,10 +488,12 @@ function enter(m) {
   $("viewTitle").textContent = MODES[m].title;
   const vis = m === "vision", convo = m === "convo";
   // language bar
-  $("langbar").classList.toggle("a-b", convo);
+  const pair = convo || (m === "speech" && $("autoTurn").checked);
+  $("langbar").classList.toggle("a-b", pair);
   show("tgtBox", !vis); show("swap", !vis);
-  $("srcLabel").textContent = convo ? "藍色（你）說" : vis ? "AI 用這個語言回答" : m === "text" ? "我的語言" : "我說的語言";
-  $("tgtLabel").textContent = convo ? "橘色（對方）說" : "翻譯成";
+  $("srcLabel").textContent = pair ? "藍色（你）說" : vis ? "AI 用這個語言回答" : m === "text" ? "我的語言" : "我說的語言";
+  $("tgtLabel").textContent = pair ? "橘色（對方）說" : "翻譯成";
+  show("turns", m === "speech" && $("autoTurn").checked);
   show("captionRow", m === "speech" || convo);
   show("stage", vis);
   $("feedTitle").textContent = vis ? "📝 AI 回答紀錄（最新的在最上面）" : "📝 翻譯紀錄（最新的在最上面）";
@@ -506,7 +525,10 @@ function startListening(speaker) {
     let interim = "";
     for (let i = ev.resultIndex; i < ev.results.length; i++) {
       const r = ev.results[i];
-      if (r.isFinal) { const t = r[0].transcript.trim(); if (t) addSegment(t, speaker); } else interim += r[0].transcript;
+      if (r.isFinal) {
+        const t = r[0].transcript.trim();
+        if (t) { addSegment(t, activeSpeaker); if (twoWay()) { switchTurn(); return; } }
+      } else interim += r[0].transcript;
     }
     setInterim(interim);
     if (interim && $("caption").classList.contains("on")) $("capSrc").textContent = interim;
@@ -517,6 +539,17 @@ function startListening(speaker) {
   try { rec.start(); } catch {}
   renderListening();
 }
+// two-way 聽我說: listen to the other person next, in their language
+function switchTurn(to) {
+  activeSpeaker = to || (activeSpeaker === "A" ? "B" : "A");
+  setInterim("");
+  if (rec) { rec.lang = langOf(activeSpeaker); try { rec.abort(); } catch {} } // onend restarts it in the new language
+  renderListening();
+}
+for (const sp of ["A", "B"]) $("turn" + sp).onclick = () => {
+  if (listening && mode === "speech") { if (activeSpeaker !== sp) switchTurn(sp); }
+  else startListening(sp);
+};
 function stopListening() {
   listening = false; micPausedForTts = false;
   if (rec) { const r = rec; rec = null; try { r.stop(); } catch {} }
@@ -528,8 +561,20 @@ function renderListening() {
   const on = listening && mode === "speech";
   $("micBtn").className = "big" + (on ? " rec" : "");
   $("micBtn").textContent = on ? "■ 停止" : "🎙 開始聽";
-  $("micHint").textContent = !on ? "按一下開始，說完一句就會自動翻譯"
-    : micPausedForTts ? "🔊 正在唸翻譯…唸完會繼續聽" : "正在聽…說完一句就會自動翻譯";
+  const who = (sp) => sp === "A" ? "你" : "對方";
+  if (twoWay()) {
+    const cur = activeSpeaker || "A";
+    $("micHint").textContent = !on ? "按一下開始。說完一句會自動翻譯、唸出來，再換另一個人說"
+      : micPausedForTts ? `🔊 正在唸翻譯…唸完換「${who(cur)}」說 ${langLabel(langOf(cur))}`
+      : `正在聽「${who(cur)}」說 ${langLabel(langOf(cur))}…（換人說話可以點上面）`;
+    for (const sp of ["A", "B"]) {
+      $("turn" + sp).classList.toggle("on", on ? cur === sp : sp === "A");
+      $("turn" + sp).innerHTML = `${on && cur === sp ? "● 現在" : "🗣"} ${who(sp)}說<small>${langLabel(langOf(sp))}</small>`;
+    }
+  } else {
+    $("micHint").textContent = !on ? "按一下開始，說完一句就會自動翻譯"
+      : micPausedForTts ? "🔊 正在唸翻譯…唸完會繼續聽" : "正在聽…說完一句就會自動翻譯";
+  }
   $("talkA").classList.toggle("rec", activeSpeaker === "A");
   $("talkB").classList.toggle("rec", activeSpeaker === "B");
   updateTalkLabels();
@@ -550,7 +595,7 @@ const visible = (seg) => mode === "vision" ? seg.kind === "vision" : seg.kind !=
 function addSegment(text, speaker) {
   const from = speaker === "B" ? $("tgtLang").value : (mode === "text" ? "auto" : $("srcLang").value);
   const to = speaker === "B" ? $("srcLang").value : $("tgtLang").value;
-  const seg = { id: Date.now() + Math.random(), t: Date.now(), speaker: mode === "convo" ? speaker : null,
+  const seg = { id: Date.now() + Math.random(), t: Date.now(), speaker: (mode === "convo" || twoWay()) ? speaker : null,
     from, to, src: text, tgt: "", state: "pending", compose: mode === "compose" };
   segments.push(seg); renderCard(seg); translate(seg);
 }
