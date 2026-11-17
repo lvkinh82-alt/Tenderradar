@@ -619,27 +619,31 @@ new ResizeObserver(fitDock).observe($("dock"));
 // ===================== speech recognition (continuous: 聽我說 / 兩個人對話) =====================
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null, listening = false, activeSpeaker = null;
-function startListening(speaker) {
-  if (!SR) { showWarn(T("這個瀏覽器不能語音辨識。iPhone 請用 Safari，電腦請用 Chrome；或改用「打字翻譯」。", "This browser can't recognise speech. Use Safari on iPhone or Chrome on a computer, or try “Type to translate”.")); return; }
-  unlockTts();
-  activeSpeaker = speaker;
-  rec = new SR();
-  rec.lang = speaker === "B" ? $("tgtLang").value : $("srcLang").value;
-  rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
-  rec.onresult = (ev) => {
+function makeRec(lang) {
+  const r = new SR();
+  r.lang = lang; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1;
+  r.onresult = (ev) => {
+    if (r !== rec) return;
     let interim = "";
     for (let i = ev.resultIndex; i < ev.results.length; i++) {
-      const r = ev.results[i];
-      if (r.isFinal) {
-        const t = r[0].transcript.trim();
+      const x = ev.results[i];
+      if (x.isFinal) {
+        const t = x[0].transcript.trim();
         if (t) { addSegment(t, activeSpeaker); if (twoWay()) { switchTurn(); return; } }
-      } else interim += r[0].transcript;
+      } else interim += x[0].transcript;
     }
     setInterim(interim);
     if (interim && $("caption").classList.contains("on")) $("capSrc").textContent = interim;
   };
-  rec.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") { showWarn(T("麥克風被擋住了：請在瀏覽器允許使用麥克風。", "The microphone is blocked: allow it in your browser.")); stopListening(); } };
-  rec.onend = () => { if (listening && rec && !micPausedForTts) { try { rec.start(); } catch {} } };
+  r.onerror = (e) => { if (r === rec && (e.error === "not-allowed" || e.error === "service-not-allowed")) { showWarn(T("麥克風被擋住了：請在瀏覽器允許使用麥克風。", "The microphone is blocked: allow it in your browser.")); stopListening(); } };
+  r.onend = () => { if (r === rec && listening && !micPausedForTts) { try { r.start(); } catch {} } };
+  return r;
+}
+function startListening(speaker) {
+  if (!SR) { showWarn(T("這個瀏覽器不能語音辨識。iPhone 請用 Safari，電腦請用 Chrome；或改用「打字翻譯」。", "This browser can't recognise speech. Use Safari on iPhone or Chrome on a computer, or try “Type to translate”.")); return; }
+  unlockTts();
+  activeSpeaker = speaker;
+  rec = makeRec(langOf(speaker));
   listening = true;
   try { rec.start(); } catch {}
   renderListening();
@@ -648,7 +652,14 @@ function startListening(speaker) {
 function switchTurn(to) {
   activeSpeaker = to || (activeSpeaker === "A" ? "B" : "A");
   setInterim("");
-  if (rec) { rec.lang = langOf(activeSpeaker); try { rec.abort(); } catch {} } // onend restarts it in the new language
+  if (rec) {
+    // replace the recognizer with one for the new speaker's language; it starts once the old one has ended
+    const old = rec, next = makeRec(langOf(activeSpeaker));
+    rec = next;
+    old.onresult = null;
+    old.onend = () => { if (rec === next && listening && !micPausedForTts) { try { next.start(); } catch {} } };
+    try { old.abort(); } catch { old.onend(); }
+  }
   renderListening();
 }
 for (const sp of ["A", "B"]) $("turn" + sp).onclick = () => {
@@ -702,7 +713,9 @@ function addSegment(text, speaker) {
   const from = speaker === "B" ? $("tgtLang").value : (mode === "text" ? "auto" : $("srcLang").value);
   const to = speaker === "B" ? $("srcLang").value : $("tgtLang").value;
   const seg = { id: Date.now() + Math.random(), t: Date.now(), speaker: (mode === "convo" || twoWay()) ? speaker : null,
-    from, to, src: text, tgt: "", state: "pending", compose: mode === "compose" };
+    from, to, src: text, tgt: "", state: "pending", compose: mode === "compose",
+    // the language pair: whichever of the two the text turns out to be in, it is translated into the other
+    pairA: mode === "compose" ? null : $("srcLang").value, pairB: mode === "compose" ? null : $("tgtLang").value };
   segments.push(seg); renderCard(seg); translate(seg);
 }
 
@@ -735,9 +748,12 @@ async function translate(seg) {
   const context = segments.filter(s => s.state === "done" && s !== seg && !AI_KINDS.has(s.kind)).slice(-6).map(s => ({ source: s.src, translation: s.tgt }));
   seg.tgt = ""; seg.state = "pending"; updateCard(seg);
   try {
+    const twoWayPair = !!(seg.pairA && seg.pairB && seg.pairA !== seg.pairB);
     await streamSSE("/api/translate", { text: seg.src, source_lang: seg.from === "auto" ? "auto" : langName(seg.from),
-      target_lang: langName(seg.to), context, glossary: $("glossary").value, style: $("style").value },
-      (t) => { seg.tgt += t; updateCard(seg); });
+      target_lang: langName(seg.to), context, glossary: $("glossary").value, style: $("style").value,
+      two_way: twoWayPair, lang_a: twoWayPair ? langName(seg.pairA) : "", lang_b: twoWayPair ? langName(seg.pairB) : "" },
+      (t) => { seg.tgt += t; updateCard(seg); },
+      (ev, data) => { if (ev === "dir") applyDirection(seg, data.to); });
     seg.state = "done";
   } catch (e) { seg.state = "error"; seg.err = T("翻譯失敗：", "Translation failed: ") + e.message; }
   updateCard(seg); persist();
@@ -746,6 +762,26 @@ async function translate(seg) {
   if (seg.state === "done" && seg.compose && navigator.clipboard) {
     navigator.clipboard.writeText(seg.tgt).then(() => toast(T("✓ 已複製，到聊天軟體貼上就好", "✓ Copied — paste it into your chat")), () => {});
   }
+}
+// The AI decided which language the sentence was really in ("A" = translated into my language).
+// Fix the card, the voice used to read it, and — in two-way Listen — whose turn is next.
+function applyDirection(seg, to) {
+  const intoMine = to === "A";
+  seg.to = intoMine ? seg.pairA : seg.pairB;
+  seg.from = intoMine ? seg.pairB : seg.pairA;
+  if (seg.speaker) {
+    const spoke = intoMine ? "B" : "A";
+    if (seg.speaker !== spoke) {
+      seg.speaker = spoke;
+      const el = $("c" + seg.id); if (el) el.className = "card " + spoke;
+      // the other person spoke when we expected someone else: listen to the right person next
+      if (twoWay() && listening && seg === segments[segments.length - 1]) {
+        const next = spoke === "A" ? "B" : "A";
+        if (activeSpeaker !== next) switchTurn(next);
+      }
+    }
+  }
+  updateCard(seg, true);
 }
 function persist() { store.set("segments", segments.slice(-300).map(({ err, thumb, status, ...s }) => s)); }
 
@@ -768,10 +804,7 @@ function renderCard(seg) {
   el.innerHTML = `<div class="meta"><span class="who"></span><span class="time"></span></div>
     <div class="src"></div><div class="status-line" hidden></div><div class="tgt"></div><div class="srcs" hidden></div><div class="explain" hidden></div><div class="acts"></div>`;
   const ai = AI_KINDS.has(seg.kind);
-  const tag = ai ? (seg.kind === "vision" ? "📹 " : "🔎 ") + T("AI 回答", "AI answer")
-    : seg.speaker === "A" ? T("你說", "You") : seg.speaker === "B" ? T("對方說", "Other person") : "";
-  const dir = `${langLabel(seg.from)} → ${langLabel(seg.to)}`;
-  el.querySelector(".who").textContent = ai ? tag : tag ? `${tag} · ${dir}` : dir;
+  el.querySelector(".who").textContent = cardMeta(seg);
   el.querySelector(".time").textContent = new Date(seg.t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   el.querySelector(".src").textContent = ai ? T("問：", "Q: ") + seg.src : seg.src;
   show(el.querySelector(".src"), ai || $("showSrc").checked);
@@ -802,9 +835,17 @@ async function explain(seg, box) {
   box.classList.remove("caret");
 }
 
-function updateCard(seg) {
+function cardMeta(seg) {
+  const ai = AI_KINDS.has(seg.kind);
+  const tag = ai ? (seg.kind === "vision" ? "📹 " : "🔎 ") + T("AI 回答", "AI answer")
+    : seg.speaker === "A" ? T("你說", "You") : seg.speaker === "B" ? T("對方說", "Other person") : "";
+  const dir = `${langLabel(seg.from)} → ${langLabel(seg.to)}`;
+  return ai ? tag : tag ? `${tag} · ${dir}` : dir;
+}
+function updateCard(seg, metaToo) {
   const el = $("c" + seg.id);
   const newest = seg === segments[segments.length - 1];
+  if (el && metaToo) el.querySelector(".who").textContent = cardMeta(seg);
   if (el) {
     const tgt = el.querySelector(".tgt");
     tgt.className = "tgt" + (seg.state === "pending" ? " caret" : "") + (seg.state === "error" ? " err" : "");

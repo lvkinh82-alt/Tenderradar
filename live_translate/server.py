@@ -17,6 +17,7 @@ to turn the check off (e.g. for purely local use).
 from __future__ import annotations
 
 import base64
+import re
 import binascii
 import html
 import json
@@ -59,7 +60,8 @@ SYSTEM_PROMPT = """You are a real-time interpreter embedded in a live translatio
 You receive one spoken or typed segment at a time and return ONLY its translation.
 
 Rules:
-- Output the translation text only: no quotes, notes, romanization, or explanations.
+- Output the translation text only: no quotes, notes, romanization, or explanations
+  (plus the direction marker line when the message asks for one).
 - Preserve meaning, tone, register and names; sound natural to a native speaker.
 - Speech-recognition output may lack punctuation or contain small recognition errors;
   infer the intended meaning and add natural punctuation in the target language.
@@ -146,6 +148,11 @@ class TranslateRequest(BaseModel):
     context: list[ContextPair] = Field(default_factory=list, max_length=10)
     glossary: str = Field("", max_length=4000)
     style: str = "natural"
+    # Two-way conversation: translate into whichever of lang_a / lang_b the text is NOT in.
+    # Speech recognition is often set to the wrong person's language, so the model decides.
+    two_way: bool = False
+    lang_a: str = ""
+    lang_b: str = ""
 
 
 class VisionTurn(BaseModel):
@@ -181,8 +188,18 @@ def build_user_message(req: TranslateRequest) -> str:
         parts.append("<recent_context>\n" + "\n".join(lines) + "\n</recent_context>")
     if req.glossary.strip():
         parts.append("<glossary>\n" + req.glossary.strip() + "\n</glossary>")
-    src = "auto-detect" if req.source_lang == "auto" else req.source_lang
-    parts.append(f"Source language: {src}\nTarget language: {req.target_lang}")
+    if req.two_way and req.lang_a and req.lang_b:
+        parts.append(
+            f"Two-way conversation.\nLanguage A: {req.lang_a}\nLanguage B: {req.lang_b}\n"
+            "Decide which of the two languages the segment is in, judging from its words; speech "
+            "recognition may have been set to the wrong language, so look past odd spellings to the meaning. "
+            "Translate it into the other language.\n"
+            "Start your reply with one line containing only @@A if you translated into Language A, "
+            "or @@B if you translated into Language B, then the translation on the next line."
+        )
+    else:
+        src = "auto-detect" if req.source_lang == "auto" else req.source_lang
+        parts.append(f"Source language: {src}\nTarget language: {req.target_lang}")
     parts.append("Style: " + STYLES.get(req.style, STYLES["natural"]))
     parts.append("<segment>\n" + req.text.strip() + "\n</segment>")
     return "\n\n".join(parts)
@@ -210,12 +227,29 @@ def stream_claude(
     user_message: str | list[dict[str, Any]],
     on_usage: Callable[[int, int, int], None] | None = None,
     tools: list[dict[str, Any]] | None = None,
+    direction_marker: bool = False,
 ) -> Iterator[str]:
     tokens_in = tokens_out = searches = 0
     cited: dict[str, str] = {}
     found: dict[str, str] = {}
     messages: list[dict[str, Any]] = [{"role": "user", "content": user_message}]
     assistant_so_far: list[Any] = []
+    # Two-way translation starts with "@@A" / "@@B": turn it into a "dir" event, never show it.
+    marker_buf: str | None = "" if direction_marker else None
+
+    def take_marker(final_flush: bool = False) -> Iterator[str]:
+        nonlocal marker_buf
+        buf = marker_buf or ""
+        if not final_flush and "\n" not in buf and len(buf.strip()) < 12:
+            return  # wait for more text
+        marker_buf = None
+        m = re.match(r"\s*@@([AB])[ \t]*\n?", buf)
+        if m:
+            yield sse("dir", {"to": m.group(1)})
+            buf = buf[m.end():].lstrip("\n")
+        if buf:
+            yield sse("delta", {"text": buf})
+
     try:
         for _ in range(3):  # a web-search turn can pause; resume it up to twice
             params: dict[str, Any] = dict(
@@ -236,7 +270,11 @@ def stream_claude(
             with stream_ctx as stream:
                 for event in stream:
                     if event.type == "text":
-                        yield sse("delta", {"text": event.text})
+                        if marker_buf is not None:
+                            marker_buf += event.text
+                            yield from take_marker()
+                        else:
+                            yield sse("delta", {"text": event.text})
                     elif event.type == "content_block_start" and event.content_block.type == "server_tool_use":
                         yield sse("status", {"kind": "search", "query": ""})
                     elif event.type == "content_block_stop" and event.content_block.type == "server_tool_use":
@@ -253,6 +291,8 @@ def stream_claude(
             # send the paused turn back unchanged; the API resumes where it stopped
             assistant_so_far = assistant_so_far + list(final.content)
             messages = [messages[0], {"role": "assistant", "content": assistant_so_far}]
+        if marker_buf is not None:
+            yield from take_marker(final_flush=True)
         sources = cited or found  # what the answer relied on; otherwise what was searched
         if sources:
             yield sse("sources", {"items": [{"url": k, "title": v} for k, v in list(sources.items())[:5]]})
@@ -301,7 +341,9 @@ def translate(req: TranslateRequest, x_invite_code: str | None = Header(default=
     denied, on_usage = gate(x_invite_code)
     if denied:
         return denied
-    return sse_response(stream_claude(SYSTEM_PROMPT, build_user_message(req), on_usage))
+    return sse_response(
+        stream_claude(SYSTEM_PROMPT, build_user_message(req), on_usage, direction_marker=req.two_way)
+    )
 
 
 @app.post("/api/vision")
