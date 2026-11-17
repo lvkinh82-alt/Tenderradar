@@ -184,6 +184,36 @@
   #caption .c-bar { position:absolute; top:calc(16px + env(safe-area-inset-top)); left:16px; right:16px; display:flex; gap:8px; }
   #caption .c-bar button { background:#222; color:#fff; border-radius:999px; padding:10px 16px; min-height:48px; font-weight:700; }
 
+  /* ---------- sign-in ---------- */
+  .remember { display:flex; align-items:center; gap:10px; margin-top:12px; font-weight:600; min-height:44px; }
+  .remember input { width:24px; height:24px; accent-color:var(--brand); }
+  .account-bar { display:flex; align-items:center; gap:10px; background:var(--surface); border:var(--edge-w) solid var(--edge);
+    border-radius:16px; padding:8px 8px 8px 16px; margin-bottom:14px; box-shadow:var(--shadow); }
+  .account-bar span { flex:1; font-weight:700; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* ---------- 我的郵件 ---------- */
+  .mail-card { background:var(--surface); border:var(--edge-w) solid var(--edge); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); margin-top:14px; }
+  .mail-card h3 { margin:0 0 6px; font-size:1.1rem; }
+  .mail-card p { margin:6px 0; color:var(--muted); }
+  .mail-card .row { display:flex; gap:10px; margin-top:12px; }
+  .mail-card .row input { flex:1; min-width:0; letter-spacing:4px; font-size:1.3rem; text-align:center; }
+  .mail-card.important { border:3px solid var(--brand); }
+  .mail-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:14px; }
+  .mail-head .who-am-i { flex:1 1 100%; font-weight:700; color:var(--brand); word-break:break-all; font-size:.95rem; }
+  .seg2 { display:flex; background:var(--bg); border:var(--edge-w) solid var(--edge); border-radius:999px; padding:3px; }
+  .seg2 button { padding:8px 14px; border-radius:999px; font-weight:700; font-size:.9rem; min-height:40px; }
+  .seg2 button.on { background:var(--brand); color:var(--brand-ink); }
+  .email { background:var(--surface); border:var(--edge-w) solid var(--edge); border-radius:var(--radius); padding:14px 16px; box-shadow:var(--shadow); margin-top:12px; }
+  .email.unread { border-left:6px solid var(--brand); }
+  .email .from { font-weight:800; font-size:1.05rem; word-break:break-word; }
+  .email .subj { font-size:1.1rem; margin-top:2px; word-break:break-word; }
+  .email .meta2 { font-size:.8rem; color:var(--muted); margin-top:2px; }
+  .email .snip { color:var(--muted); margin-top:6px; font-size:.95rem; }
+  .email .ex { margin-top:10px; padding:12px 14px; border-radius:14px; background:var(--brand-soft); border-left:4px solid var(--brand); white-space:pre-wrap; font-size:1.1rem; line-height:1.6; }
+  .email .acts { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .email .acts button { background:var(--bg); border:var(--edge-w) solid var(--edge); border-radius:999px; padding:8px 14px; font-weight:700; min-height:44px; }
+  .email .acts button.main { background:var(--brand); color:var(--brand-ink); border-color:var(--brand); }
+  .digest { white-space:pre-wrap; font-size:1.1rem; line-height:1.6; }
+  .linkish { color:var(--danger); font-weight:700; margin-top:16px; display:inline-block; }
   /* ---------- bilingual labels: English sits under the Chinese, a little smaller ---------- */
   .en { display:block; font-size:.74em; font-weight:600; opacity:.78; line-height:1.3; margin-top:1px; letter-spacing:.1px; }
   .title .en { font-size:.62em; }
@@ -226,10 +256,12 @@
       <div style="color:var(--muted)" data-h="inviteWhy"></div>
       <div class="invite-row">
         <input type="text" id="inviteHome" data-ph="inviteEg" autocomplete="off" autocapitalize="characters" spellcheck="false">
-        <button class="send" data-save-invite="inviteHome" data-h="ok"></button>
+        <button class="send" data-login="inviteHome" data-remember="rememberHome" data-h="login"></button>
       </div>
+      <label class="remember"><input type="checkbox" id="rememberHome" checked><span data-h="remember"></span></label>
       <div class="status" id="inviteHomeStatus"></div>
     </div>
+    <div class="account-bar" id="accountBar" hidden><span id="accountName"></span><button class="pill-btn" data-logout data-h="logout"></button></div>
 
     <div class="hello" data-h="hello"></div>
     <p class="sub" data-h="helloSub"></p>
@@ -239,6 +271,7 @@
       <button class="tile" data-go="ask"><span class="ic">🔎</span><span><b data-h="tAsk"></b><small data-h="tAskD"></small></span></button>
       <button class="tile" data-go="vision"><span class="ic">📹</span><span><b data-h="tVision"></b><small data-h="tVisionD"></small></span></button>
       <button class="tile" data-go="text"><span class="ic">⌨️</span><span><b data-h="tText"></b><small data-h="tTextD"></small></span></button>
+      <button class="tile" data-go="mail"><span class="ic">📧</span><span><b data-h="tMail"></b><small data-h="tMailD"></small></span></button>
       <button class="tile" data-go="compose"><span class="ic">✍️</span><span><b data-h="tCompose"></b><small data-h="tComposeD"></small></span></button>
     </div>
   </section>
@@ -261,6 +294,7 @@
       <div class="answer" id="camAnswer" hidden><div class="q" id="camQ"></div><div id="camA"></div></div>
     </div>
 
+    <div id="mailPane" hidden></div>
     <div class="sect" id="feedTitle"></div>
     <div class="listening" id="interim" hidden></div>
     <div id="feed"></div>
@@ -278,6 +312,10 @@
       </div>
       <button class="big" id="micBtn"></button>
       <div class="hint" id="micHint"></div>
+    </div>
+    <div id="dMail">
+      <button class="big" id="digestBtn"></button>
+      <div class="hint" data-h="mailHint"></div>
     </div>
     <div id="dConvo">
       <div class="two">
@@ -322,14 +360,19 @@
 
     <div class="group">
       <h3 data-h="gConn"></h3>
-      <div class="item">
+      <div class="item" id="setLoggedIn" hidden>
+        <div style="font-weight:700" id="setAccount"></div>
+        <button class="soft danger" data-logout style="width:100%;margin-top:10px" data-h="logout"></button>
+      </div>
+      <div class="item" id="setLoggedOut">
         <div style="font-weight:700" data-h="inviteCode"></div>
         <div class="invite-row">
           <input type="text" id="inviteSet" data-ph="inviteEg" autocomplete="off" autocapitalize="characters" spellcheck="false">
-          <button class="send" data-save-invite="inviteSet" data-h="ok"></button>
+          <button class="send" data-login="inviteSet" data-remember="rememberSet" data-h="login"></button>
         </div>
-        <div class="status" id="serverStatus"></div>
+        <label class="remember"><input type="checkbox" id="rememberSet" checked><span data-h="remember"></span></label>
       </div>
+      <div class="item"><div class="status" id="serverStatus"></div></div>
     </div>
 
     <div class="group">
@@ -393,8 +436,10 @@ const errText = (zh, en, e) => e.zh ? T(zh + e.zh, en + e.en) : T(zh, en) + e.me
 
 const I18N = {
   back: ["‹ 首頁", "Home"], settings: ["⚙️ 設定", "Settings"], ok: ["確認", "OK"], done: ["完成", "Done"], close: ["✕ 關閉", "Close"],
-  inviteTitle: ["🔑 請輸入邀請碼", "Enter your invite code"],
-  inviteWhy: ["邀請碼由送你這個網址的人提供，輸入一次就會記住。", "You get it from the person who sent you this link. Enter it once; it's remembered."],
+  inviteTitle: ["🔑 登入", "Sign in"],
+  inviteWhy: ["輸入你的邀請碼（由送你這個網址的人提供）。同一個邀請碼同一時間只能在一部裝置使用。", "Enter your invite code (from the person who sent you this link). A code can be used on one device at a time."],
+  login: ["登入", "Sign in"], logout: ["登出", "Sign out"],
+  remember: ["記住我（下次打開不用再登入）", "Remember me (stay signed in)"],
   inviteEg: ["例如 TUMUOI-1954", "e.g. TUMUOI-1954"], inviteCode: ["邀請碼", "Invite code"],
   hello: ["您好！今天要做什麼？", "Hello! What would you like to do?"],
   helloSub: ["點一下下面的大按鈕就可以開始。", "Tap a big button below to start."],
@@ -407,6 +452,8 @@ const I18N = {
   tVision: ["拍給 AI 看", "Show it to AI"],
   tVisionD: ["用鏡頭或照片問 AI：藥盒、菜單、路牌、說明書", "Ask about what the camera sees: medicine, menus, signs"],
   tText: ["打字翻譯", "Type to translate"], tTextD: ["輸入任何語言的文字，自動翻譯", "Type in any language, it's translated"],
+  tMail: ["我的郵件", "My email"], tMailD: ["AI 幫你看 Gmail，用你的語言說明每封信在說什麼", "AI reads your Gmail and explains each email in your language"],
+  mailHint: ["AI 只會讀郵件、不會幫你寄信；說明會自動唸出來", "The AI only reads email, it never sends; explanations are read aloud"],
   tCompose: ["寫訊息給朋友", "Write a message"], tComposeD: ["用自己的話寫，翻好自動複製，直接貼到聊天", "Write it your way; the translation is copied for you to paste"],
   caption: ["🖥 全螢幕大字幕", "Big captions"],
   camOff: ["按下面「開口問」或「看一下」就會打開鏡頭", "Tap “Ask” or “Look” below to open the camera"],
@@ -506,6 +553,7 @@ const MODES = {
   ask:     { title: ["🔎 問 AI", "Ask AI"], empty: [["按「開口問」或在下面打字問", "Tap “Ask” or type your question below"], ["需要最新消息時，AI 會自己上網查，並附上資料來源", "When it needs current facts, the AI searches the web and lists its sources"]] },
   vision:  { title: ["📹 拍給 AI 看", "Show it to AI"], empty: [["把鏡頭對準要問的東西，按「開口問」", "Point the camera at it and tap “Ask”"], ["也可以按「看一下」讓 AI 說明畫面，或「上傳照片」", "Or tap “Look” to have it explained, or upload a photo"]] },
   text:    { title: ["⌨️ 打字翻譯", "Type to translate"], empty: [["在下面輸入文字，按「翻譯」", "Type below and tap “Translate”"], ["任何語言都可以，會自動偵測", "Any language — it's detected automatically"]] },
+  mail:    { title: ["📧 我的郵件", "My email"], empty: [["", ""], ["", ""]] },
   compose: { title: ["✍️ 寫訊息", "Write a message"], empty: [["用自己的語言寫下想說的話，按「翻譯」", "Write in your own language and tap “Translate”"], ["翻好會自動複製，直接到聊天軟體貼上就好", "The translation is copied — just paste it into your chat"]] },
 };
 const AI_KINDS = new Set(["ask", "vision"]);
@@ -544,36 +592,102 @@ function refreshTexts() {
   applyI18n();
   if (mode !== "home") setupView(mode); else checkServer();
   renderListening(); renderFeed(); updateCamButton(); stopAsk(); checkServer();
+  if (mode === "mail") openMail();
   $("capTgt").textContent = $("capTgt").textContent || T("等待說話…", "Waiting for speech…");
 }
 
-// ===================== invite code + server health =====================
-const inviteCode = () => (store.get("invite", "") || "").trim().toUpperCase();
-$("inviteHome").value = $("inviteSet").value = inviteCode();
-document.querySelectorAll("[data-save-invite]").forEach(btn => {
-  const input = $(btn.dataset.saveInvite);
-  const save = () => { const v = input.value.trim().toUpperCase(); store.set("invite", v); $("inviteHome").value = $("inviteSet").value = v; checkServer(); };
-  btn.onclick = save; input.onkeydown = (e) => { if (e.key === "Enter") save(); };
+// ===================== sign-in (one device per invite code) + server health =====================
+// Signing in gives this device a session token. "Remember me" keeps it in localStorage (stays signed
+// in); otherwise it lives in sessionStorage and is gone when the tab is closed.
+const session = {
+  get() { try { return localStorage.getItem("ll_session") || sessionStorage.getItem("ll_session") || ""; } catch { return ""; } },
+  set(tok, remember) {
+    try {
+      for (const st of [localStorage, sessionStorage]) { st.removeItem("ll_session"); st.removeItem("ll_account"); }
+      if (tok) { const st = remember ? localStorage : sessionStorage; st.setItem("ll_session", tok); st.setItem("ll_account", JSON.stringify(account || {})); }
+    } catch {}
+  },
+};
+let account = (() => { try { return JSON.parse(localStorage.getItem("ll_account") || sessionStorage.getItem("ll_account") || "null"); } catch { return null; } })();
+const authHeaders = () => { const t = session.get(); return t ? { "X-Session": t } : {}; };
+let pendingLoginNote = "";
+// older versions kept a bare invite code on the device (possibly someone else's): sign in again instead
+try { if (localStorage.getItem("ll_invite")) { localStorage.removeItem("ll_invite"); if (!session.get()) pendingLoginNote = T("請重新登入。", "Please sign in again."); } } catch {}
+
+function renderAccount(loggedIn) {
+  const name = account ? `${account.name || ""} · ${account.code || ""}` : "";
+  show("accountBar", loggedIn && !!account);
+  $("accountName").textContent = `👤 ${name}　${T("已登入", "signed in")}`;
+  show("setLoggedIn", loggedIn); show("setLoggedOut", !loggedIn);
+  $("setAccount").textContent = `👤 ${name}　${T("已登入", "signed in")}`;
+}
+async function signIn(input, remember) {
+  const code = input.value.trim().toUpperCase();
+  if (!code) { input.focus(); return; }
+  try {
+    const res = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ code }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { loginNote(srvMsg(data.message || ("HTTP " + res.status)), "bad"); return; }
+    account = { name: data.name, code: data.code };
+    session.set(data.token, remember);
+    pendingLoginNote = "";
+    $("inviteHome").value = $("inviteSet").value = "";
+    toast("✓ " + T(`${data.name}，歡迎！`, `Welcome, ${data.name}!`));
+    checkServer();
+  } catch { loginNote(T("連不上伺服器，請檢查網路。", "Can't reach the server. Check your connection."), "bad"); }
+}
+function loginNote(msg, cls) { for (const id of ["inviteHomeStatus", "serverStatus"]) { $(id).textContent = msg; $(id).className = "status " + (cls || "bad"); } }
+// the server says this device is no longer signed in (signed out, taken over, or code removed)
+function signedOut(message) {
+  account = null; session.set("");
+  try { pinStore.set(""); } catch {} mailPin = "";
+  pendingLoginNote = message; // shown until they sign in again (later status checks don't overwrite it)
+  renderAccount(false); show("inviteCard", true);
+  if (mode !== "home") location.hash = "";
+  loginNote(message, "bad");
+}
+async function signOut() {
+  if (!confirm(T("確定要登出嗎？", "Sign out?"))) return;
+  try { await fetch("/api/logout", { method: "POST", headers: authHeaders() }); } catch {}
+  stopListening(true); stopSpeaking();
+  signedOut(T("已登出。", "Signed out."));
+  closeSheet();
+}
+document.querySelectorAll("[data-login]").forEach(btn => {
+  const input = $(btn.dataset.login), remember = $(btn.dataset.remember);
+  btn.onclick = () => signIn(input, remember.checked);
+  input.onkeydown = (e) => { if (e.key === "Enter") signIn(input, remember.checked); };
 });
+document.querySelectorAll("[data-logout]").forEach(btn => btn.onclick = signOut);
+
 let inviteOk = true;
 function checkServer() {
-  return fetch("/api/health", { headers: { "X-Invite-Code": inviteCode() } }).then(r => r.json()).then(h => {
+  return fetch("/api/health", { headers: authHeaders() }).then(r => r.json()).then(h => {
     inviteOk = !h.invite_required || h.invite === "ok";
+    const loggedIn = !h.invite_required || h.invite === "ok" || h.invite === "limit";
+    if (h.invite === "session_ended" && session.get()) { signedOut(srvMsg(h.invite_message)); return; }
     const ok = h.credentials && inviteOk;
     $("dot").className = "dot " + (ok ? "ok" : "bad");
     let msg, cls;
     if (!h.credentials) { msg = T("伺服器還沒設定 API 金鑰，暫時不能使用。", "The server has no API key yet, so it can't be used."); cls = "bad"; }
-    else if (!inviteOk) { msg = h.invite_message ? srvMsg(h.invite_message) : T("請輸入邀請碼", "Please enter your invite code"); cls = "bad"; }
+    else if (!loggedIn) { msg = pendingLoginNote; cls = "bad"; } // the sign-in card explains itself; only show a reason
+    else if (!inviteOk) { msg = h.invite_message ? srvMsg(h.invite_message) : ""; cls = "bad"; }
     else {
       const who = h.invite_name ? `${h.invite_name}，` : "";
       msg = "✓ " + T(`${who}已連線，可以使用`, `${h.invite_name ? h.invite_name + ", " : ""}connected and ready`)
         + (h.daily_limit ? T(`（今天已用 ${h.used_today} / ${h.daily_limit} 次）`, ` (${h.used_today} / ${h.daily_limit} used today)`) : "");
       cls = "ok";
     }
+    if (h.invite_name && account) account.name = h.invite_name;
+    renderAccount(h.invite_required && loggedIn);
     for (const id of ["serverStatus", "inviteHomeStatus"]) { $(id).textContent = msg; $(id).className = "status " + cls; }
-    show("inviteCard", h.invite_required && !inviteOk);
+    show("inviteCard", h.invite_required && !loggedIn);
+    if (!h.invite_required) { show("setLoggedOut", false); show("setLoggedIn", false); }
   }).catch(() => { $("dot").className = "dot bad"; $("serverStatus").textContent = T("連不上伺服器，請檢查網路。", "Can't reach the server. Check your connection."); $("serverStatus").className = "status bad"; });
 }
+// keep this device marked as "in use" while the app is open, so no one else can sign in with the code
+setInterval(() => { if (session.get() && document.visibilityState === "visible") checkServer(); }, 3 * 60 * 1000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && session.get()) checkServer(); });
 
 // ===================== navigation (home <-> function), phone back gesture works =====================
 document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { location.hash = b.dataset.go; });
@@ -593,24 +707,26 @@ function enter(m) {
   if (home) { checkServer(); return; }
   setupView(m);
   renderListening(); renderFeed(); fitDock();
+  if (m === "mail") openMail();
 }
 
 // labels and layout of a function screen (also re-run when the interface language changes)
 function setupView(m) {
   $("viewTitle").innerHTML = H(...MODES[m].title);
-  const vis = m === "vision", ai = AI_KINDS.has(m), convo = m === "convo";
+  const vis = m === "vision", isMail = m === "mail", ai = AI_KINDS.has(m) || isMail, convo = m === "convo";
   const pair = convo || (m === "speech" && $("autoTurn").checked);
   $("langbar").classList.toggle("a-b", pair);
   show("tgtBox", !ai); show("swap", !ai);
   $("srcLabel").textContent = pair ? T("藍色（你）說", "Blue (you) speak")
-    : ai ? T("AI 用這個語言回答", "AI answers in") : m === "text" ? T("我的語言", "My language") : T("我說的語言", "I speak");
+    : isMail ? T("AI 用這個語言說明郵件", "AI explains emails in") : ai ? T("AI 用這個語言回答", "AI answers in") : m === "text" ? T("我的語言", "My language") : T("我說的語言", "I speak");
   $("tgtLabel").textContent = pair ? T("橘色（對方）說", "Orange (other person) speaks") : T("翻譯成", "Translate into");
   show("turns", m === "speech" && $("autoTurn").checked);
   show("captionRow", m === "speech" || convo);
   show("stage", vis);
   $("feedTitle").textContent = ai ? "📝 " + T("AI 回答紀錄（最新的在最上面）", "AI answers (newest first)") : "📝 " + T("翻譯紀錄（最新的在最上面）", "Translations (newest first)");
   // dock: one clear action per function
-  show("dSpeech", m === "speech"); show("dConvo", convo); show("dAsk", ai); show("visionRow", vis);
+  show("mailPane", isMail); show("feed", !isMail); show("feedTitle", !isMail); show("dMail", isMail);
+  show("dSpeech", m === "speech"); show("dConvo", convo); show("dAsk", ai && !isMail); show("visionRow", vis);
   const typing = m === "text" || m === "compose" || m === "ask";
   show("dTyping", typing);
   $("dTyping").style.marginTop = (m === "ask" ? "10px" : typing ? "0" : "10px");
@@ -618,6 +734,7 @@ function setupView(m) {
     : vis ? T("打字問 AI（會連同畫面一起送出）", "Type a question (sent with the picture)")
     : m === "ask" ? T("打字問任何問題，或貼上網址…", "Type a question, or paste a web link…") : T("輸入要翻譯的文字…", "Type text to translate…");
   $("sendText").innerHTML = ai ? H("問", "Ask") : H("翻譯", "Translate");
+  $("digestBtn").innerHTML = H("📬 新郵件說給我聽", "Tell me my new emails");
   updateTalkLabels(); stopAsk();
 }
 
@@ -786,10 +903,11 @@ function addSegment(text, speaker) {
 }
 
 async function streamSSE(url, payload, onDelta, onEvent) {
-  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "X-Invite-Code": inviteCode() }, body: JSON.stringify(payload) });
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload) });
   if (!res.ok) {
-    let msg = "HTTP " + res.status;
-    try { msg = (await res.json()).message || msg; } catch {}
+    let msg = "HTTP " + res.status, err = "";
+    try { const d = await res.json(); msg = d.message || msg; err = d.error || ""; } catch {}
+    if (err === "session_ended" || err === "login_required") signedOut(srvMsg(msg));
     if (res.status === 401 || res.status === 403 || res.status === 429) checkServer();
     throw bilingualError(msg);
   }
@@ -1176,6 +1294,148 @@ $("askBtn").onclick = async () => {
   try { r.start(); } catch { stopAsk(); }
 };
 $("lookBtn").onclick = () => { unlockTts(); stopSpeaking(); askAI(""); };
+
+// ===================== 我的郵件 (read-only Gmail, protected by the invite code + a personal PIN) =====================
+// The PIN lives only in this browser tab (sessionStorage): it survives the trip to Google's
+// sign-in page and back, and is gone when the tab is closed.
+const pinStore = { get() { try { return sessionStorage.getItem("ll_mailpin") || ""; } catch { return ""; } },
+  set(v) { try { v ? sessionStorage.setItem("ll_mailpin", v) : sessionStorage.removeItem("ll_mailpin"); } catch {} } };
+let mailPin = pinStore.get();
+let mailState = null;        // last /api/mail/status
+let mailUnreadOnly = true, mailItems = [], mailBusy = false;
+async function mailJSON(path, body) {
+  const res = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: body ? JSON.stringify(body) : undefined });
+  let data = {}; try { data = await res.json(); } catch {}
+  if (!res.ok) {
+    if (data.error === "session_ended" || data.error === "login_required") signedOut(srvMsg(data.message));
+    const e = bilingualError(data.message || ("HTTP " + res.status)); e.status = res.status; e.code = data.error; throw e;
+  }
+  return data;
+}
+const pane = () => $("mailPane");
+function mailCard(html, important) { return `<div class="mail-card${important ? " important" : ""}">${html}</div>`; }
+function pinRow(id, btnZh, btnEn) {
+  return `<div class="row"><input id="${id}" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="••••">
+    <button class="send" id="${id}Btn">${H(btnZh, btnEn)}</button></div>`;
+}
+async function openMail(note) {
+  pane().innerHTML = mailCard(esc(T("讀取中…", "Loading…")));
+  try { mailState = await mailJSON("/api/mail/status"); }
+  catch (e) { pane().innerHTML = mailCard(`<h3>${esc(e.message)}</h3>`, true); return; }
+  renderMailGate(note);
+}
+function renderMailGate(note) {
+  const s = mailState, noteHtml = note ? `<p style="color:var(--brand);font-weight:700">${esc(note)}</p>` : "";
+  if (!s.configured) {
+    pane().innerHTML = mailCard(`<h3>${H("主人還沒開啟郵件功能", "Email isn't set up yet")}</h3><p>${esc(T("需要在伺服器加上 Google 的設定值（請看 RAILWAY.md 的「Gmail」步驟）。", "The server needs Google settings (see the Gmail steps in RAILWAY.md)."))}</p>`, true);
+    return;
+  }
+  if (!s.connected) {
+    const first = !s.has_pin;
+    pane().innerHTML = mailCard(`${noteHtml}<h3>${first ? H("第一步：設定你的 PIN", "Step 1: choose a PIN") : H("連接 Gmail", "Connect Gmail")}</h3>
+      <p>${esc(first ? T("設定 4–8 位數字的 PIN。以後看郵件都要輸入，別人拿到邀請碼也看不到你的信。", "Choose a 4–8 digit PIN. You'll enter it to read email, so others can't read it even with your invite code.")
+                     : T("輸入你的 PIN，然後在 Google 頁面登入並按「允許」。（Google 測試模式每 7 天要重新連接一次）", "Enter your PIN, then sign in on Google's page and tap Allow. (In Google's testing mode this is needed every 7 days.)"))}</p>
+      ${s.pinned_to ? `<p>${esc(T("這個邀請碼只能連接：", "This code can only connect: "))}<b>${esc(s.pinned_to)}</b></p>` : ""}
+      ${pinRow("mailPinIn", first ? "設定並連接 Gmail" : "連接 Gmail", first ? "Set & connect Gmail" : "Connect Gmail")}
+      <p>${esc(T("只會「讀取」郵件，不會刪信或寄信。Gmail 密碼只在 Google 自己的頁面輸入。", "Read-only: it can't delete or send. Your Gmail password is only entered on Google's own page."))}</p>`, true);
+    $("mailPinInBtn").onclick = async () => {
+      const pin = $("mailPinIn").value.trim();
+      try { const r = await mailJSON("/api/mail/start", { pin }); mailPin = pin; pinStore.set(pin); location.href = r.url; }
+      catch (e) { toast(e.message); }
+    };
+    $("mailPinIn").onkeydown = (e) => { if (e.key === "Enter") $("mailPinInBtn").click(); };
+    return;
+  }
+  if (!mailPin) {
+    pane().innerHTML = mailCard(`${noteHtml}<h3>${H("輸入 PIN 看郵件", "Enter your PIN to read email")}</h3><p>${esc(s.email)}</p>${pinRow("mailUnlock", "打開", "Open")}`, true);
+    $("mailUnlockBtn").onclick = async () => { mailPin = $("mailUnlock").value.trim(); pinStore.set(mailPin); await loadMail(); };
+    $("mailUnlock").onkeydown = (e) => { if (e.key === "Enter") $("mailUnlockBtn").click(); };
+    setTimeout(() => $("mailUnlock")?.focus(), 50);
+    return;
+  }
+  if (note) toast(note);
+  loadMail();
+}
+function handleMailError(e) {
+  if (e.code === "wrong_pin" || e.code === "no_pin" || e.code === "locked") { mailPin = ""; pinStore.set(""); renderMailGate(e.message); return true; }
+  if (e.code === "reconnect" || e.code === "not_connected") { mailState.connected = false; renderMailGate(e.message); return true; }
+  toast(e.message); return false;
+}
+async function loadMail() {
+  if (mailBusy) return; mailBusy = true;
+  pane().innerHTML = mailCard(esc(T("正在讀取 Gmail…", "Reading Gmail…")));
+  try {
+    const r = await mailJSON("/api/mail/list", { pin: mailPin, unread_only: mailUnreadOnly });
+    mailItems = r.messages || []; renderMailList(r.email);
+  } catch (e) { handleMailError(e); }
+  finally { mailBusy = false; }
+}
+function shortDate(d) { const t = Date.parse(d); return isNaN(t) ? d : new Date(t).toLocaleString([], { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
+function renderMailList(email) {
+  const head = `<div class="mail-head"><span class="who-am-i">📧 ${esc(email || mailState.email)}</span>
+    <span class="seg2"><button id="mUnread" class="${mailUnreadOnly ? "on" : ""}">${esc(T("未讀", "Unread"))}</button><button id="mAll" class="${mailUnreadOnly ? "" : "on"}">${esc(T("全部", "All"))}</button></span>
+    <button class="pill-btn" id="mRefresh">🔄 ${esc(T("重新整理", "Refresh"))}</button></div>
+    <div id="digestBox" hidden></div>`;
+  const list = mailItems.length ? mailItems.map((m, i) => `<div class="email${m.unread ? " unread" : ""}" id="em${i}">
+      <div class="from">${esc(m.from.replace(/<[^>]*>/, "").trim() || m.from)}</div>
+      <div class="subj">${esc(m.subject || T("（沒有主旨）", "(no subject)"))}</div>
+      <div class="meta2">${esc(shortDate(m.date))}${m.unread ? " · " + esc(T("未讀", "unread")) : ""}</div>
+      <div class="snip">${esc(m.snippet)}</div>
+      <div class="ex" hidden></div>
+      <div class="acts"><button class="main" data-ex="${i}">📖 ${esc(T("這封說什麼", "What does it say?"))}</button></div></div>`).join("")
+    : `<div class="empty"><b>${H(mailUnreadOnly ? "沒有未讀郵件 🎉" : "收件匣是空的", mailUnreadOnly ? "No unread email 🎉" : "Your inbox is empty")}</b></div>`;
+  pane().innerHTML = head + list + `<button class="link-btn linkish" id="mDisconnect">${esc(T("中斷 Gmail 連接", "Disconnect Gmail"))}</button>`;
+  $("mUnread").onclick = () => { mailUnreadOnly = true; loadMail(); };
+  $("mAll").onclick = () => { mailUnreadOnly = false; loadMail(); };
+  $("mRefresh").onclick = loadMail;
+  pane().querySelectorAll("[data-ex]").forEach(b => b.onclick = () => explainMail(+b.dataset.ex));
+  $("mDisconnect").onclick = async () => {
+    if (!confirm(T("確定要中斷 Gmail 連接嗎？之後要看郵件需要重新連接。", "Disconnect Gmail? You'll need to connect again to read email."))) return;
+    try { await mailJSON("/api/mail/disconnect", { pin: mailPin }); mailPin = ""; pinStore.set(""); openMail(T("已中斷連接。", "Disconnected.")); } catch (e) { handleMailError(e); }
+  };
+}
+async function streamMail(path, body, box) {
+  box.hidden = false; box.textContent = ""; box.classList.add("caret");
+  const voice = $("voiceReply").checked, lang = $("srcLang").value;
+  if (voice) stopSpeaking(true);
+  let text = "", spoken = 0;
+  const speakDone = (final) => { if (!voice) return; const rest = text.slice(spoken);
+    const m = final ? rest.length : Math.max(...["。", "！", "？", ".", "!", "?", "\n"].map(p => rest.lastIndexOf(p))) + 1;
+    if (m > 0 && rest.slice(0, m).trim()) { speak(rest.slice(0, m).trim(), lang); spoken += m; } };
+  try {
+    await streamSSE(path, { ...body, pin: mailPin, answer_lang: langName(lang) }, (t) => {
+      text += t;
+      if (text === "NO_UNREAD") return;
+      box.textContent = text; speakDone(false);
+    });
+    if (text === "NO_UNREAD") { text = T("沒有新郵件。", "No new email."); box.textContent = text; }
+    speakDone(true);
+  } catch (e) {
+    box.textContent = e.message;
+    const code = /PIN|鎖|locked/i.test(e.message) ? "wrong_pin" : /重新連接|reconnect/i.test(e.message) ? "reconnect" : "";
+    if (code) handleMailError(Object.assign(e, { code }));
+  }
+  box.classList.remove("caret");
+}
+function explainMail(i) {
+  const m = mailItems[i], el = $("em" + i); if (!m || !el) return;
+  unlockTts();
+  streamMail("/api/mail/explain", { id: m.id }, el.querySelector(".ex"));
+}
+$("digestBtn").onclick = async () => {
+  unlockTts();
+  if (!mailState?.connected || !mailPin) { renderMailGate(T("請先輸入 PIN。", "Please enter your PIN first.")); return; }
+  if (!$("digestBox")) await loadMail();
+  const box = $("digestBox"); if (!box) return;
+  box.className = "mail-card important digest"; window.scrollTo({ top: 0, behavior: "smooth" });
+  streamMail("/api/mail/digest", {}, box);
+};
+// back from Google's sign-in page: show the result once and tidy the address bar
+(() => {
+  const msg = new URLSearchParams(location.search).get("mailmsg");
+  if (msg) { history.replaceState(null, "", "/#mail"); setTimeout(() => { if (mode === "mail") openMail(srvMsg(msg)); else toast(srvMsg(msg)); }, 0); }
+})();
 
 // ===================== fullscreen captions =====================
 let capSize = store.get("capSize", 6);

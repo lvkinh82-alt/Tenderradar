@@ -1,5 +1,6 @@
 // Talks to the Muối Từ translation server (live_translate/server.py), which holds the
 // Claude API key. The app never stores the API key itself.
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fetch } from "expo/fetch";
 
 export type ContextPair = { source: string; translation: string };
@@ -9,7 +10,58 @@ const base = (serverUrl: string) => serverUrl.trim().replace(/\/+$/, "");
 
 export type Server = { url: string; invite: string };
 
-const inviteHeader = (invite: string) => ({ "X-Invite-Code": invite.trim().toUpperCase() });
+// The server allows one device per invite code: sign in once to get a session token and send
+// that with every request. Tokens are kept per server + code in AsyncStorage.
+const sessionKey = (server: Server) => `ll_session:${base(server.url)}:${server.invite.trim().toUpperCase()}`;
+const tokens = new Map<string, string>();
+
+async function storedToken(server: Server): Promise<string | null> {
+  const k = sessionKey(server);
+  if (tokens.has(k)) return tokens.get(k) ?? null;
+  const t = await AsyncStorage.getItem(k);
+  if (t) tokens.set(k, t);
+  return t;
+}
+
+async function signIn(server: Server): Promise<string> {
+  const k = sessionKey(server);
+  const current = await storedToken(server);
+  const res = await fetch(`${base(server.url)}/api/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(current ? { "X-Session": current } : {}) },
+    body: JSON.stringify({ code: server.invite.trim().toUpperCase() }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { token?: string; message?: string };
+  if (!res.ok || !data.token) throw new Error(data.message ?? `伺服器回應 HTTP ${res.status}`);
+  tokens.set(k, data.token);
+  await AsyncStorage.setItem(k, data.token);
+  return data.token;
+}
+
+export async function signOut(server: Server): Promise<void> {
+  const k = sessionKey(server);
+  const t = await storedToken(server);
+  tokens.delete(k);
+  await AsyncStorage.removeItem(k);
+  if (t) await fetch(`${base(server.url)}/api/logout`, { method: "POST", headers: { "X-Session": t } }).catch(() => {});
+}
+
+async function forget(server: Server) {
+  const k = sessionKey(server);
+  tokens.delete(k);
+  await AsyncStorage.removeItem(k);
+}
+
+/** fetch with this device's session; signs in when needed and once more if the session ended */
+async function authedFetch(server: Server, path: string, init: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal } = {}) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const token = (await storedToken(server)) ?? (await signIn(server));
+    const res = await fetch(`${base(server.url)}${path}`, { ...init, headers: { ...(init.headers ?? {}), "X-Session": token } });
+    if (res.status !== 401 || attempt === 1) return res;
+    await forget(server); // signed out or taken over: try signing in again (fails clearly if another device has it)
+  }
+  throw new Error("unreachable");
+}
 
 async function streamSSE(
   server: Server,
@@ -18,9 +70,9 @@ async function streamSSE(
   onDelta: (text: string) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${base(server.url)}${path}`, {
+  const res = await authedFetch(server, path, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...inviteHeader(server.invite) },
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
     body: JSON.stringify(payload),
     signal,
   });
@@ -92,7 +144,7 @@ export type Health = {
 };
 
 export async function checkHealth(server: Server): Promise<Health> {
-  const res = await fetch(`${base(server.url)}/api/health`, { headers: inviteHeader(server.invite) });
+  const res = await authedFetch(server, "/api/health");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return (await res.json()) as Health;
 }

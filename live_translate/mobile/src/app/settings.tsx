@@ -2,7 +2,7 @@ import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
-import { checkHealth } from "../lib/api";
+import { checkHealth, signOut } from "../lib/api";
 import { toSrt, toTxt } from "../lib/exporters";
 import { useApp } from "../lib/store";
 import { useTheme } from "../lib/theme";
@@ -77,6 +77,15 @@ export default function Settings() {
         />
         <Pressable onPress={test} style={[s.btn, { backgroundColor: c.accent }]}>
           <Text style={{ color: c.accentInk, fontWeight: "700" }}>測試連線</Text>
+        </Pressable>
+        <Pressable
+          onPress={async () => {
+            await signOut({ url: settings.serverUrl, invite: settings.invite });
+            setStatus("已登出這台裝置。其他裝置現在可以用這個邀請碼登入。");
+          }}
+          style={[s.btn, { borderWidth: 2, borderColor: c.danger }]}
+        >
+          <Text style={{ color: c.danger, fontWeight: "700" }}>登出這台裝置</Text>
         </Pressable>
         {status && <Text style={{ color: c.ink, marginTop: 8 }}>{status}</Text>}
         <Text style={[s.hint, { color: c.muted }]}>

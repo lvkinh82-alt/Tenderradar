@@ -16,7 +16,9 @@ override with LIVE_TRANSLATE_DB). Manage them from the command line:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
+import time
 import secrets
 import sqlite3
 import threading
@@ -172,6 +174,8 @@ def _update(code: str, sql: str, *args) -> bool:
 
 
 def set_active(code: str, active: bool) -> bool:
+    if not active:
+        kick(code)
     return _update(code, "UPDATE invites SET active = ? WHERE code = ?", int(active))
 
 
@@ -183,9 +187,100 @@ def delete(code: str) -> bool:
     with _lock:
         c = normalize(code)
         db().execute("DELETE FROM usage WHERE code = ?", (c,))
+        _sessions().execute("DELETE FROM sessions WHERE code = ?", (c,))
         cur = db().execute("DELETE FROM invites WHERE code = ?", (c,))
         db().commit()
         return cur.rowcount > 0
+
+
+# ----------------------------------------------------------------------------- sign-in sessions
+# One person per code: signing in gives the device a session token, and while that device is
+# active (used within ACTIVE_MINUTES) no other device can sign in with the same code. Signing
+# out, or staying idle longer than that, frees the code for another device.
+ONE_DEVICE = os.environ.get("LIVE_TRANSLATE_ONE_DEVICE", "1") != "0"
+ACTIVE_MINUTES = float(os.environ.get("LIVE_TRANSLATE_ACTIVE_MINUTES", "10"))
+
+
+def _sessions():
+    conn = db()
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS sessions (
+               token_hash TEXT PRIMARY KEY,
+               code       TEXT NOT NULL,
+               created    REAL NOT NULL,
+               last_seen  REAL NOT NULL
+           )"""
+    )
+    return conn
+
+
+def _th(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def session_code(token: str | None) -> str | None:
+    """The code a session token belongs to (and mark it as just used), or None if it ended."""
+    if not token:
+        return None
+    now = time.time()
+    with _lock:
+        conn = _sessions()
+        row = conn.execute("SELECT code, last_seen FROM sessions WHERE token_hash = ?", (_th(token),)).fetchone()
+        if not row:
+            return None
+        if now - row["last_seen"] > 30:  # don't write on every request
+            conn.execute("UPDATE sessions SET last_seen = ? WHERE token_hash = ?", (now, _th(token)))
+            conn.commit()
+        return row["code"]
+
+
+def sign_in(code: str, current_token: str | None = None) -> tuple[str | None, str]:
+    """Start a session for this code. Returns (token, "") or (None, reason) with reason "busy"."""
+    code = normalize(code)
+    now = time.time()
+    with _lock:
+        conn = _sessions()
+        if current_token:  # the same device signing in again keeps its session
+            row = conn.execute("SELECT code FROM sessions WHERE token_hash = ?", (_th(current_token),)).fetchone()
+            if row and row["code"] == code:
+                conn.execute("UPDATE sessions SET last_seen = ? WHERE token_hash = ?", (now, _th(current_token)))
+                conn.commit()
+                return current_token, ""
+        if ONE_DEVICE:
+            busy = conn.execute(
+                "SELECT 1 FROM sessions WHERE code = ? AND last_seen > ?", (code, now - ACTIVE_MINUTES * 60)
+            ).fetchone()
+            if busy:
+                return None, "busy"
+            conn.execute("DELETE FROM sessions WHERE code = ?", (code,))  # an idle device is signed out
+        token = secrets.token_urlsafe(32)
+        conn.execute("INSERT INTO sessions (token_hash, code, created, last_seen) VALUES (?, ?, ?, ?)", (_th(token), code, now, now))
+        conn.commit()
+        return token, ""
+
+
+def sign_out(token: str | None) -> None:
+    if not token:
+        return
+    with _lock:
+        conn = _sessions()
+        conn.execute("DELETE FROM sessions WHERE token_hash = ?", (_th(token),))
+        conn.commit()
+
+
+def kick(code: str) -> bool:
+    """Sign out every device using this code (admin)."""
+    with _lock:
+        conn = _sessions()
+        cur = conn.execute("DELETE FROM sessions WHERE code = ?", (normalize(code),))
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def last_seen(code: str) -> float | None:
+    with _lock:
+        row = _sessions().execute("SELECT MAX(last_seen) AS t FROM sessions WHERE code = ?", (normalize(code),)).fetchone()
+    return row["t"] if row and row["t"] else None
 
 
 def parse_spec(spec: str) -> list[tuple[str, str, int]]:
@@ -230,6 +325,7 @@ def sync_from_env(spec: str) -> list[tuple[str, str, int]]:
             conn.execute(f"UPDATE invites SET active = 0 WHERE code NOT IN ({','.join('?' * len(listed))})", listed)
         else:
             conn.execute("UPDATE invites SET active = 0")
+        _sessions().execute("DELETE FROM sessions WHERE code IN (SELECT code FROM invites WHERE active = 0)")  # sign out removed codes
         conn.commit()
     return entries
 
@@ -271,6 +367,8 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("list", help="列出所有邀請碼與用量")
     for cmd, h in [("disable", "停用"), ("enable", "重新啟用"), ("delete", "刪除（連同用量紀錄）")]:
         sub.add_parser(cmd, help=h).add_argument("code")
+    sub.add_parser("logout", help="強制登出這個碼的裝置").add_argument("code")
+    sub.add_parser("mail-reset", help="清除這個碼的 PIN 和 Gmail 連接（忘記 PIN 時用）").add_argument("code")
     lim = sub.add_parser("limit", help="修改每日上限")
     lim.add_argument("code")
     lim.add_argument("daily_limit", type=int)
@@ -297,6 +395,12 @@ def main(argv: list[str] | None = None) -> None:
             print(f"{r['code']:<14} {r['name']:<10} {st:<4} {lim_s:<10} {r['total_requests']:>8} {'$' + format(r['cost_usd'], '.3f'):>10}")
         total = sum(r["cost_usd"] for r in rows)
         print(f"\n全部估計費用：${total:.3f}（{_model}，以每百萬 token 輸入 ${PRICE_IN:g} / 輸出 ${PRICE_OUT:g}、每次上網搜尋 ${PRICE_SEARCH:g} 計算）")
+    elif args.cmd == "logout":
+        print("已登出" if kick(args.code) else f"這個碼目前沒有登入的裝置：{args.code}")
+    elif args.cmd == "mail-reset":
+        from . import mail  # imported here: mail depends on this module
+        mail.disconnect(args.code)
+        print("完成" if mail.reset(args.code) else f"這個碼沒有設定郵件：{args.code}")
     else:
         fn = {
             "disable": lambda: set_active(args.code, False),
