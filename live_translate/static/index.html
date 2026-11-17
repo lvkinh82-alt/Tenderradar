@@ -144,7 +144,8 @@
   .talk.A { background:var(--a-soft); color:var(--a); border:2px solid var(--a); }
   .talk.B { background:var(--b-soft); color:var(--b); border:2px solid var(--b); }
   .talk.rec { background:var(--rec); border-color:var(--rec); color:#fff; animation:pulse 1.4s infinite; }
-  .row3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-top:10px; }
+  .row3 { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; margin-top:10px; }
+  @media (min-width: 560px) { .row3 { grid-template-columns:repeat(4, 1fr); } }
   .soft { background:var(--bg); border:var(--edge-w) solid var(--edge); border-radius:16px; min-height:56px; font-size:.95rem; font-weight:700; padding:6px; }
   .typing { display:flex; gap:10px; align-items:flex-end; }
   .typing textarea { min-height:56px; max-height:140px; resize:none; }
@@ -290,6 +291,7 @@
       <div class="row3" id="visionRow">
         <button class="soft" id="lookBtn" data-h="look"></button>
         <button class="soft" id="uploadBtn" data-h="upload"></button>
+        <button class="soft" id="linkBtn" data-h="readLink"></button>
         <button class="soft" id="typeBtn" data-h="typeAsk"></button>
       </div>
       <input type="file" id="imgFile" accept="image/*" hidden>
@@ -410,7 +412,7 @@ const I18N = {
   camOff: ["按下面「開口問」或「看一下」就會打開鏡頭", "Tap “Ask” or “Look” below to open the camera"],
   flip: ["🔄 前/後", "Flip"],
   convoHint: ["輪到誰說話，就按誰的按鈕；再按一下停止", "Whoever is speaking taps their button; tap again to stop"],
-  look: ["👀 看一下", "Look"], upload: ["🖼 上傳照片", "Photo"], typeAsk: ["⌨️ 打字問", "Type"],
+  look: ["👀 看一下", "Look"], upload: ["🖼 上傳照片", "Photo"], typeAsk: ["⌨️ 打字問", "Type"], readLink: ["🔗 讀網址", "Web link"],
   gUi: ["界面語言", "Interface language"], gConn: ["連線", "Connection"], gVoice: ["聲音", "Voice"], gTrans: ["翻譯", "Translation"], gRecords: ["紀錄", "History"],
   sAutoSpeak: ["「聽我說」「兩個人對話」翻好馬上唸出來", "Read translations aloud right away (Listen / Conversation)"],
   sAutoTurn: ["「聽我說」雙向：一個人說完，自動換另一個人說", "Listen mode is two-way: switch speakers after each sentence"],
@@ -614,7 +616,7 @@ function setupView(m) {
   $("dTyping").style.marginTop = (m === "ask" ? "10px" : typing ? "0" : "10px");
   $("textIn").placeholder = m === "compose" ? T("寫下想傳給朋友的話…", "Write what you want to send…")
     : vis ? T("打字問 AI（會連同畫面一起送出）", "Type a question (sent with the picture)")
-    : m === "ask" ? T("打字問任何問題…", "Type any question…") : T("輸入要翻譯的文字…", "Type text to translate…");
+    : m === "ask" ? T("打字問任何問題，或貼上網址…", "Type a question, or paste a web link…") : T("輸入要翻譯的文字…", "Type text to translate…");
   $("sendText").innerHTML = ai ? H("問", "Ask") : H("翻譯", "Translate");
   updateTalkLabels(); stopAsk();
 }
@@ -1027,6 +1029,11 @@ function sendText() {
 $("sendText").onclick = sendText;
 $("textIn").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendText(); } };
 $("textIn").oninput = () => { const t = $("textIn"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 140) + "px"; };
+$("linkBtn").onclick = () => {
+  show("dTyping", true); fitDock();
+  $("textIn").placeholder = T("貼上網址，再寫你的問題（例如：這個網頁說什麼？）", "Paste a web link, then your question (e.g. what does this page say?)");
+  $("textIn").focus();
+};
 $("typeBtn").onclick = () => { const on = $("dTyping").hidden; show("dTyping", on); fitDock(); if (on) $("textIn").focus(); };
 
 // ===================== camera / photo (拍給 AI 看) =====================
@@ -1068,8 +1075,10 @@ function scaleImage(src, maxSide, q) {
 function grabFrame() { // the uploaded photo, or the current camera frame
   if (!camStream && stillImage) return stillImage;
   const v = $("cam"); if (!camStream || !v.videoWidth) return null;
-  return { full: scaleImage(v, 1024, 0.72), thumb: scaleImage(v, 192, 0.6) };
+  return { full: scaleImage(v, 1024, 0.72), thumb: scaleImage(v, 192, 0.6), uploaded: false };
 }
+const hasUrl = (t) => /(https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(com|net|org|io|co|tw|hk|vn|cn|jp|kr|uk|us|gov|edu)(\/\S*)?\b/i.test(t || "");
+const asksAboutLink = (t) => hasUrl(t) || /網址|網站|網頁|連結|链接|网址|网站|网页|link|website|web ?page|url|qr/i.test(t || "");
 $("uploadBtn").onclick = () => { unlockTts(); $("imgFile").click(); };
 $("imgFile").onchange = async () => {
   const file = $("imgFile").files[0]; $("imgFile").value = "";
@@ -1077,7 +1086,7 @@ $("imgFile").onchange = async () => {
   const url = URL.createObjectURL(file);
   try {
     const img = new Image(); img.src = url; await img.decode();
-    stillImage = { full: scaleImage(img, 1568, 0.82), thumb: scaleImage(img, 192, 0.6) }; // menus/documents need detail
+    stillImage = { full: scaleImage(img, 1568, 0.82), thumb: scaleImage(img, 192, 0.6), uploaded: true }; // menus/documents need detail
   } catch { showWarn(T("這張照片打不開，請換一張。", "That photo can't be opened, please try another.")); return; }
   finally { URL.revokeObjectURL(url); }
   stopCamera(); show("cam", false);
@@ -1090,7 +1099,9 @@ $("imgFile").onchange = async () => {
 async function askAI(question) {
   const vis = mode === "vision";
   let f = null;
-  if (vis) {
+  // a link question in the camera screen with nothing to look at: just open the link
+  const linkOnly = vis && !camStream && !stillImage && hasUrl(question);
+  if (vis && !linkOnly) {
     if (!camStream && !stillImage && !(await startCamera())) return;
     if (camStream && !$("cam").videoWidth) await new Promise(r => setTimeout(r, 400));
     f = grabFrame(); if (!f) { showWarn(T("鏡頭還沒準備好，請再按一次。", "The camera isn't ready yet, please tap again.")); return; }
@@ -1098,12 +1109,13 @@ async function askAI(question) {
   if (!question && !vis) return;
   const lang = $("srcLang").value;
   const seg = { id: Date.now() + Math.random(), t: Date.now(), kind: mode, speaker: null, from: lang, to: lang,
-    src: question || T("（請看一下畫面）", "(Take a look)"), q: question, tgt: "", state: "pending", thumb: f?.thumb };
+    src: question || T("（請看一下畫面）", "(Take a look)"), q: question, tgt: "", state: "pending", thumb: f?.thumb,
+    noImage: linkOnly, readLinks: !!f && (f.uploaded || asksAboutLink(question)) };
   if (f) frames[seg.id] = f.full;
   segments.push(seg); renderCard(seg); runAI(seg);
 }
 async function runAI(seg) {
-  const vis = seg.kind === "vision";
+  const vis = seg.kind === "vision" && !seg.noImage;
   const full = frames[seg.id];
   if (vis && !full) { seg.state = "error"; seg.err = T("這張畫面已經不在了，請重新拍一次。", "That picture is gone — please take it again."); updateCard(seg); return; }
   const history = segments.filter(s => s.kind === seg.kind && s.state === "done" && s !== seg).slice(-4).map(s => ({ question: s.q || "", answer: s.tgt }));
@@ -1119,15 +1131,18 @@ async function runAI(seg) {
     if (m > 0 && rest.slice(0, m).trim()) { speak(rest.slice(0, m).trim(), seg.to); spoken += m; }
   };
   const onEvent = (ev, data) => {
-    if (ev === "status" && data.kind === "search") {
-      seg.status = data.query ? T(`🔎 正在上網查：${data.query}`, `🔎 Searching the web: ${data.query}`) : T("🔎 正在上網查…", "🔎 Searching the web…");
+    if (ev === "status") {
+      const q = data.query;
+      seg.status = data.kind === "fetch" ? (q ? T(`🌐 正在打開網頁：${q}`, `🌐 Opening the page: ${q}`) : T("🌐 正在打開網頁…", "🌐 Opening the page…"))
+        : data.kind === "links" ? (q ? T(`🔗 找到網址：${q}`, `🔗 Found web addresses: ${q}`) : T("🔗 正在讀圖片上的網址…", "🔗 Reading web addresses in the picture…"))
+        : (q ? T(`🔎 正在上網查：${q}`, `🔎 Searching the web: ${q}`) : T("🔎 正在上網查…", "🔎 Searching the web…"));
       if (vis) camState(seg.status);
       updateCard(seg);
     } else if (ev === "sources") { seg.sources = data.items || []; updateCard(seg); }
   };
   const url = vis ? "/api/vision" : "/api/ask";
   const payload = vis
-    ? { image: full.split(",")[1], media_type: "image/jpeg", question: seg.q || "", answer_lang: langName(seg.to), history }
+    ? { image: full.split(",")[1], media_type: "image/jpeg", question: seg.q || "", answer_lang: langName(seg.to), history, read_links: !!seg.readLinks }
     : { question: seg.q, answer_lang: langName(seg.to), history };
   try {
     await streamSSE(url, payload, (t) => { seg.tgt += t; seg.status = ""; updateCard(seg); speakFinished(false); }, onEvent);

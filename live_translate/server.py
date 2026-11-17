@@ -54,7 +54,16 @@ INVITE_ERRORS = {
 # Live web search for "Ask AI" and the video assistant (billed per search on top of tokens).
 # The basic tool version works on every current model, including Claude Haiku 5.5.
 WEB_SEARCH_ON = os.environ.get("LIVE_TRANSLATE_WEB_SEARCH", "1") != "0"
-WEB_TOOLS = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}]
+# web_fetch lets the AI open a page whose address the user gave (typed, or read off a photo).
+# It costs only the tokens of the page it reads; max_content_tokens caps that.
+WEB_TOOLS = [
+    {"type": "web_search_20250305", "name": "web_search", "max_uses": 3},
+    {"type": "web_fetch_20250910", "name": "web_fetch", "max_uses": 3, "max_content_tokens": 20000},
+]
+
+LINKS_PROMPT = """List every web address visible in the image (full URLs, or domain names with an
+optional path such as example.com/menu), exactly as written, one per line. Ignore e-mail addresses.
+If there are none, reply with the single word NONE."""
 
 SYSTEM_PROMPT = """You are a real-time interpreter embedded in a live translation app.
 You receive one spoken or typed segment at a time and return ONLY its translation.
@@ -106,7 +115,9 @@ How to answer:
   tell them to check with a pharmacist or doctor instead.
 - If the question needs current information you can't see (price, where to buy, reviews,
   opening hours, what a product is), use web search. Don't announce the search and
-  don't put URLs in the text; the app lists your sources."""
+  don't put URLs in the text; the app lists your sources.
+- If a web address is listed in the message or the user gives one, and the question is about
+  that page (or the page would help), open it with web_fetch and answer from what it says."""
 
 ASK_PROMPT = """You are the "Ask AI" helper inside Muối Từ, a translation app used by older people
 and their families. Answer the user's question (transcribed from speech, so it may contain
@@ -121,6 +132,7 @@ How to answer:
   Don't search for stable knowledge, greetings or simple conversation.
 - Don't announce that you are searching; the app shows that. Give the answer directly.
   The app lists your sources separately, so don't cite them in the text.
+- If the user gives a web address, open it with web_fetch and answer from that page.
 - If you can't find a reliable answer, say so plainly and suggest who to ask.
 - Health, medicine, money and legal questions: give practical general information and
   suggest checking with a doctor, pharmacist or professional when it matters."""
@@ -166,6 +178,8 @@ class VisionRequest(BaseModel):
     question: str = Field("", max_length=2000)
     answer_lang: str = "Traditional Chinese"
     history: list[VisionTurn] = Field(default_factory=list, max_length=6)
+    # Read web addresses off the picture so the AI may open them (uploaded photos, link questions)
+    read_links: bool = False
 
 
 class AskRequest(BaseModel):
@@ -220,6 +234,10 @@ def _collect_sources(content: list[Any], cited: dict[str, str], found: dict[str,
             for r in block.content:
                 if getattr(r, "url", None):
                     found.setdefault(r.url, r.title or r.url)
+        elif block.type == "web_fetch_tool_result" and getattr(block.content, "type", "") == "web_fetch_result":
+            # a page the AI opened is always shown as a source
+            doc = getattr(block.content, "content", None)
+            cited.setdefault(block.content.url, getattr(doc, "title", None) or block.content.url)
 
 
 def stream_claude(
@@ -276,10 +294,15 @@ def stream_claude(
                         else:
                             yield sse("delta", {"text": event.text})
                     elif event.type == "content_block_start" and event.content_block.type == "server_tool_use":
-                        yield sse("status", {"kind": "search", "query": ""})
+                        kind = "fetch" if getattr(event.content_block, "name", "") == "web_fetch" else "search"
+                        yield sse("status", {"kind": kind, "query": ""})
                     elif event.type == "content_block_stop" and event.content_block.type == "server_tool_use":
-                        query = event.content_block.input.get("query", "") if isinstance(event.content_block.input, dict) else ""
-                        yield sse("status", {"kind": "search", "query": query})
+                        b = event.content_block
+                        inp = b.input if isinstance(b.input, dict) else {}
+                        if getattr(b, "name", "") == "web_fetch":
+                            yield sse("status", {"kind": "fetch", "query": inp.get("url", "")})
+                        else:
+                            yield sse("status", {"kind": "search", "query": inp.get("query", "")})
                 final = stream.get_final_message()
             u = final.usage
             tokens_in += u.input_tokens + (u.cache_creation_input_tokens or 0) + (u.cache_read_input_tokens or 0)
@@ -338,7 +361,7 @@ def gate(code: str | None) -> tuple[JSONResponse | None, Callable[[int, int, int
         status, message = INVITE_ERRORS[res.status]
         return JSONResponse({"error": res.status, "message": message}, status_code=status), None
     assert code is not None
-    return None, lambda i, o, s: invites.record(code, i, o, s)
+    return None, lambda i, o, s, requests=1: invites.record(code, i, o, s, requests=requests)
 
 
 @app.post("/api/translate")
@@ -369,11 +392,54 @@ def vision(req: VisionRequest, x_invite_code: str | None = Header(default=None))
     parts.append(f"Answer language: {req.answer_lang}")
     q = req.question.strip()
     parts.append(f"<question>\n{q}\n</question>" if q else "No question: describe what matters and translate visible foreign text.")
-    content = [
-        {"type": "image", "source": {"type": "base64", "media_type": req.media_type, "data": req.image}},
-        {"type": "text", "text": "\n\n".join(parts)},
-    ]
-    return sse_response(stream_claude(VISION_PROMPT, content, on_usage, WEB_TOOLS if WEB_SEARCH_ON else None))
+    image_block = {"type": "image", "source": {"type": "base64", "media_type": req.media_type, "data": req.image}}
+
+    def events() -> Iterator[str]:
+        if req.read_links and WEB_SEARCH_ON:
+            # The AI may only open addresses that appear as text in the message, not inside an
+            # image, so first copy any addresses visible in the picture into the message text.
+            yield sse("status", {"kind": "links", "query": ""})
+            links = read_links_from_image(image_block, on_usage)
+            if links:
+                parts.insert(-1, "Web addresses visible in the picture (open them with web_fetch if they help):\n"
+                             + "\n".join(links))
+                yield sse("status", {"kind": "links", "query": " ".join(links)})
+        content = [image_block, {"type": "text", "text": "\n\n".join(parts)}]
+        yield from stream_claude(VISION_PROMPT, content, on_usage, WEB_TOOLS if WEB_SEARCH_ON else None)
+
+    return sse_response(events())
+
+
+_URLISH = re.compile(r"^(https?://)?([a-z0-9-]+\.)+[a-z]{2,}(:\d+)?(/\S*)?$", re.IGNORECASE)
+
+
+def read_links_from_image(image_block: dict[str, Any], on_usage: Callable[..., None] | None) -> list[str]:
+    """Ask the model for the web addresses printed in the picture (returns full https:// URLs)."""
+    try:
+        msg = client().messages.create(
+            model=MODEL,
+            max_tokens=1000,
+            output_config={"effort": "low"},
+            system=LINKS_PROMPT,
+            messages=[{"role": "user", "content": [image_block, {"type": "text", "text": "Web addresses in this picture:"}]}],
+        )
+    except Exception as e:  # reading links is a bonus: never fail the answer because of it
+        print(f"[muoitu] reading links failed: {e!r}", flush=True)
+        return []
+    if on_usage:
+        u = msg.usage
+        on_usage(u.input_tokens + (u.cache_creation_input_tokens or 0) + (u.cache_read_input_tokens or 0),
+                 u.output_tokens, 0, requests=0)  # part of the same question: not an extra use
+    text = "".join(b.text for b in msg.content if b.type == "text")
+    links: list[str] = []
+    for line in text.splitlines():
+        cand = re.sub(r"^\s*\d+[.)]\s*", "", line).strip(" \t-•*·,;()<>\"'`").rstrip(".")  # drop list numbering/bullets
+        if not cand or cand.upper() == "NONE" or "@" in cand or not _URLISH.match(cand):
+            continue
+        url = cand if cand.lower().startswith(("http://", "https://")) else "https://" + cand
+        if url not in links:
+            links.append(url)
+    return links[:5]
 
 
 @app.post("/api/ask")
