@@ -621,11 +621,19 @@ function renderAccount(loggedIn) {
   show("setLoggedIn", loggedIn); show("setLoggedOut", !loggedIn);
   $("setAccount").textContent = `👤 ${name}　${T("已登入", "signed in")}`;
 }
+// a random id this browser keeps (even without "remember me") so it can always sign back in
+function deviceId() {
+  try {
+    let d = localStorage.getItem("ll_device");
+    if (!d) { d = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()); localStorage.setItem("ll_device", d); }
+    return d;
+  } catch { return ""; }
+}
 async function signIn(input, remember) {
   const code = input.value.trim().toUpperCase();
   if (!code) { input.focus(); return; }
   try {
-    const res = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ code }) });
+    const res = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json", "X-Device": deviceId(), ...authHeaders() }, body: JSON.stringify({ code }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { loginNote(srvMsg(data.message || ("HTTP " + res.status)), "bad"); return; }
     account = { name: data.name, code: data.code };

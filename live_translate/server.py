@@ -399,12 +399,12 @@ class SignIn(BaseModel):
 
 
 @app.post("/api/login")
-def login(req: SignIn, x_session: str | None = Header(default=None)):
+def login(req: SignIn, x_session: str | None = Header(default=None), x_device: str | None = Header(default=None)):
     res = invites.check(req.code)
     if res.status in ("missing", "invalid", "disabled"):
         status, message = INVITE_ERRORS[res.status]
         return JSONResponse({"error": res.status, "message": message}, status_code=status)
-    token, why = invites.sign_in(req.code, x_session)
+    token, why = invites.sign_in(req.code, x_session, x_device)
     if not token:
         mins = int(invites.ACTIVE_MINUTES)
         return JSONResponse({"error": why, "message":

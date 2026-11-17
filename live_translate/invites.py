@@ -211,6 +211,8 @@ def _sessions():
                last_seen  REAL NOT NULL
            )"""
     )
+    if "device" not in {r[1] for r in conn.execute("PRAGMA table_info(sessions)")}:
+        conn.execute("ALTER TABLE sessions ADD COLUMN device TEXT NOT NULL DEFAULT ''")
     return conn
 
 
@@ -234,27 +236,36 @@ def session_code(token: str | None) -> str | None:
         return row["code"]
 
 
-def sign_in(code: str, current_token: str | None = None) -> tuple[str | None, str]:
-    """Start a session for this code. Returns (token, "") or (None, reason) with reason "busy"."""
+def sign_in(code: str, current_token: str | None = None, device: str | None = None) -> tuple[str | None, str]:
+    """Start a session for this code. Returns (token, "") or (None, reason) with reason "busy".
+
+    `device` is a random id the browser/app keeps for itself: the same device can always sign in
+    again (e.g. after closing a tab without "remember me", or restarting), replacing its old session.
+    """
     code = normalize(code)
+    device = (device or "")[:100]
     now = time.time()
     with _lock:
         conn = _sessions()
         if current_token:  # the same device signing in again keeps its session
             row = conn.execute("SELECT code FROM sessions WHERE token_hash = ?", (_th(current_token),)).fetchone()
             if row and row["code"] == code:
-                conn.execute("UPDATE sessions SET last_seen = ? WHERE token_hash = ?", (now, _th(current_token)))
+                conn.execute("UPDATE sessions SET last_seen = ?, device = CASE WHEN ? = '' THEN device ELSE ? END WHERE token_hash = ?",
+                             (now, device, device, _th(current_token)))
                 conn.commit()
                 return current_token, ""
         if ONE_DEVICE:
+            others = "AND device != ?" if device else ""
             busy = conn.execute(
-                "SELECT 1 FROM sessions WHERE code = ? AND last_seen > ?", (code, now - ACTIVE_MINUTES * 60)
+                f"SELECT 1 FROM sessions WHERE code = ? AND last_seen > ? {others}",
+                (code, now - ACTIVE_MINUTES * 60, *([device] if device else [])),
             ).fetchone()
             if busy:
                 return None, "busy"
-            conn.execute("DELETE FROM sessions WHERE code = ?", (code,))  # an idle device is signed out
+            conn.execute("DELETE FROM sessions WHERE code = ?", (code,))  # idle devices / this device's old session
         token = secrets.token_urlsafe(32)
-        conn.execute("INSERT INTO sessions (token_hash, code, created, last_seen) VALUES (?, ?, ?, ?)", (_th(token), code, now, now))
+        conn.execute("INSERT INTO sessions (token_hash, code, created, last_seen, device) VALUES (?, ?, ?, ?, ?)",
+                     (_th(token), code, now, now, device))
         conn.commit()
         return token, ""
 

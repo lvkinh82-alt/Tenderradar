@@ -55,4 +55,14 @@ check("admin page shows devices column", "裝置" in c.get("/admin?token=adminto
 e = login("TUMUOI-1954").json()["token"]; inv.set_active("TUMUOI-1954", False)
 check("disabled code: device signed out", tr(e).status_code == 401)
 check("disabled code can't sign in", login("TUMUOI-1954").status_code == 403)
+
+# the same browser/phone (same device id) can always sign back in, e.g. after closing a tab
+inv.set_active("TUMUOI-1954", True)
+dev = lambda code, d: c.post("/api/login", json={"code": code}, headers={"X-Device": d})
+f = dev("TUMUOI-1954", "phone-1").json().get("token")
+g = dev("TUMUOI-1954", "phone-1")
+check("same device without its token can sign back in", g.status_code == 200 and g.json()["token"] != f)
+check("its old session is replaced", tr(f).status_code == 401 and tr(g.json()["token"]).status_code == 200)
+check("a different device is still refused", dev("TUMUOI-1954", "phone-2").status_code == 409)
+check("a device with no id is still refused", login("TUMUOI-1954").status_code == 409)
 print(f"\n{sum(ok)}/{len(ok)} passed"); sys.exit(0 if all(ok) else 1)

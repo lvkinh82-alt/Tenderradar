@@ -23,12 +23,22 @@ async function storedToken(server: Server): Promise<string | null> {
   return t;
 }
 
+// a random id this phone keeps, so it can always sign back in even if its session was lost
+async function deviceId(): Promise<string> {
+  let d = await AsyncStorage.getItem("ll_device");
+  if (!d) {
+    d = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+    await AsyncStorage.setItem("ll_device", d);
+  }
+  return d;
+}
+
 async function signIn(server: Server): Promise<string> {
   const k = sessionKey(server);
   const current = await storedToken(server);
   const res = await fetch(`${base(server.url)}/api/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(current ? { "X-Session": current } : {}) },
+    headers: { "Content-Type": "application/json", "X-Device": await deviceId(), ...(current ? { "X-Session": current } : {}) },
     body: JSON.stringify({ code: server.invite.trim().toUpperCase() }),
   });
   const data = (await res.json().catch(() => ({}))) as { token?: string; message?: string };
