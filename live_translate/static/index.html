@@ -213,6 +213,23 @@
   .email .acts button { background:var(--bg); border:var(--edge-w) solid var(--edge); border-radius:999px; padding:8px 14px; font-weight:700; min-height:44px; }
   .email .acts button.main { background:var(--brand); color:var(--brand-ink); border-color:var(--brand); }
   .digest { white-space:pre-wrap; font-size:1.1rem; line-height:1.6; }
+  .rp { margin-top:12px; padding:14px; border-radius:14px; border:3px solid var(--brand); background:var(--bg); }
+  .rp h4 { margin:0 0 8px; font-size:1.05rem; }
+  .rp p { margin:6px 0; color:var(--muted); }
+  .rp label { display:block; font-weight:700; margin-top:10px; }
+  .rp select, .rp textarea { width:100%; margin-top:6px; font-size:1.05rem; }
+  .rp textarea { min-height:90px; padding:10px 12px; border-radius:12px; border:var(--edge-w) solid var(--edge); background:var(--surface); color:inherit; font-family:inherit; line-height:1.5; }
+  .rp textarea.body { min-height:160px; }
+  .rp .bigmic { display:block; width:100%; margin-top:10px; padding:16px; border-radius:16px; font-size:1.2rem; font-weight:800; background:var(--brand); color:var(--brand-ink); border:0; min-height:60px; }
+  .rp .bigmic.rec { background:#dc2626; color:#fff; animation:pulse 1.2s infinite; }
+  .rp .explain { margin-top:12px; padding:12px 14px; border-radius:14px; background:var(--brand-soft); border-left:4px solid var(--brand); white-space:pre-wrap; font-size:1.1rem; line-height:1.6; }
+  .rp .warnbox { margin-top:10px; padding:10px 12px; border-radius:12px; background:#fef2f2; color:#991b1b; border:2px solid #dc2626; font-weight:700; }
+  .rp .acts { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .rp .acts button { background:var(--surface); border:var(--edge-w) solid var(--edge); border-radius:999px; padding:10px 16px; font-weight:800; min-height:48px; }
+  .rp .acts button.main { background:var(--brand); color:var(--brand-ink); border-color:var(--brand); }
+  .rp .acts button.send-ok { background:#047857; color:#fff; border-color:#047857; }
+  .rp .row { display:flex; gap:10px; margin-top:10px; }
+  .rp .row input { flex:1; min-width:0; letter-spacing:4px; font-size:1.3rem; text-align:center; }
   .linkish { color:var(--danger); font-weight:700; margin-top:16px; display:inline-block; }
   /* ---------- bilingual labels: English sits under the Chinese, a little smaller ---------- */
   .en { display:block; font-size:.74em; font-weight:600; opacity:.78; line-height:1.3; margin-top:1px; letter-spacing:.1px; }
@@ -1391,13 +1408,15 @@ function renderMailList(email) {
       <div class="meta2">${esc(shortDate(m.date))}${m.unread ? " · " + esc(T("未讀", "unread")) : ""}</div>
       <div class="snip">${esc(m.snippet)}</div>
       <div class="ex" hidden></div>
-      <div class="acts"><button class="main" data-ex="${i}">📖 ${esc(T("這封說什麼", "What does it say?"))}</button></div></div>`).join("")
+      <div class="acts"><button class="main" data-ex="${i}">📖 ${esc(T("這封說什麼", "What does it say?"))}</button>${mailState.send_on !== false ? `<button data-rp="${i}">✍️ ${esc(T("回覆", "Reply"))}</button>` : ""}</div>
+      <div class="rp" hidden></div></div>`).join("")
     : `<div class="empty"><b>${H(mailUnreadOnly ? "沒有未讀郵件 🎉" : "收件匣是空的", mailUnreadOnly ? "No unread email 🎉" : "Your inbox is empty")}</b></div>`;
   pane().innerHTML = head + list + `<button class="link-btn linkish" id="mDisconnect">${esc(T("中斷 Gmail 連接", "Disconnect Gmail"))}</button>`;
   $("mUnread").onclick = () => { mailUnreadOnly = true; loadMail(); };
   $("mAll").onclick = () => { mailUnreadOnly = false; loadMail(); };
   $("mRefresh").onclick = loadMail;
   pane().querySelectorAll("[data-ex]").forEach(b => b.onclick = () => explainMail(+b.dataset.ex));
+  pane().querySelectorAll("[data-rp]").forEach(b => b.onclick = () => openReply(+b.dataset.rp));
   $("mDisconnect").onclick = async () => {
     if (!confirm(T("確定要中斷 Gmail 連接嗎？之後要看郵件需要重新連接。", "Disconnect Gmail? You'll need to connect again to read email."))) return;
     try { await mailJSON("/api/mail/disconnect", { pin: mailPin }); mailPin = ""; pinStore.set(""); openMail(T("已中斷連接。", "Disconnected.")); } catch (e) { handleMailError(e); }
@@ -1430,6 +1449,123 @@ function explainMail(i) {
   const m = mailItems[i], el = $("em" + i); if (!m || !el) return;
   unlockTts();
   streamMail("/api/mail/explain", { id: m.id }, el.querySelector(".ex"));
+}
+// ===================== replying to an email =====================
+// The owner says (or types) what to reply; the AI drafts it in the email's language and explains
+// it back in the owner's language. Nothing is sent until they tap Send and enter their PIN again.
+// The server decides the recipient (the original sender); the AI can't change it.
+let dictRec = null;
+function dictate(btn, lang, onText, onDone) {
+  if (!SR) { toast(T("這個瀏覽器不能用語音輸入，請用打字。", "Voice input isn't available in this browser; please type.")); return; }
+  if (dictRec) { try { dictRec.stop(); } catch {} return; } // second tap: done talking
+  if (listening) stopListening(true);
+  stopSpeaking(true);
+  const r = new SR(), label = btn.innerHTML;
+  r.lang = lang; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1;
+  let heard = "";
+  r.onresult = (ev) => { heard = Array.from(ev.results).map(x => x[0].transcript).join(""); onText(heard); };
+  r.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed")
+    toast(T("麥克風被擋住了：請在瀏覽器允許使用麥克風。", "The microphone is blocked: allow it in your browser.")); };
+  const end = () => { if (dictRec !== r) return; dictRec = null; clearTimeout(r.safety); btn.classList.remove("rec"); btn.innerHTML = label; onDone(heard.trim()); };
+  r.onend = end;
+  r.safety = setTimeout(() => { try { r.stop(); } catch {} setTimeout(end, 1500); }, 120000);
+  try { r.start(); } catch { toast(T("麥克風啟動失敗，請再按一次。", "Couldn't start the microphone, tap again.")); return; }
+  dictRec = r; btn.classList.add("rec"); btn.innerHTML = H("⏹ 說完了，按這裡", "⏹ Done talking, tap here");
+}
+function reconnectForSend(box) {
+  box.innerHTML = `<h4>${H("要先允許「寄送郵件」", "Allow sending email first")}</h4>
+    <p>${esc(T("要讓 AI 幫你回覆，需要重新連接一次 Gmail，並在 Google 頁面勾選「傳送電子郵件」的權限。", "To let the AI reply for you, reconnect Gmail once and tick the permission to send email on Google's page."))}</p>
+    <div class="acts"><button class="main" data-act="recon">🔄 ${esc(T("重新連接 Gmail", "Reconnect Gmail"))}</button><button data-act="close">✖ ${esc(T("關閉", "Close"))}</button></div>`;
+  box.querySelector('[data-act="recon"]').onclick = async () => {
+    try { const r = await mailJSON("/api/mail/start", { pin: mailPin }); location.href = r.url; } catch (e) { handleMailError(e); }
+  };
+  box.querySelector('[data-act="close"]').onclick = () => { box.hidden = true; box.innerHTML = ""; };
+}
+function openReply(i) {
+  const m = mailItems[i], el = $("em" + i); if (!m || !el) return;
+  unlockTts();
+  const box = el.querySelector(".rp");
+  if (!box.hidden && box.innerHTML) { box.scrollIntoView({ behavior: "smooth", block: "nearest" }); return; }
+  box.hidden = false;
+  if (!mailState.can_send) { reconnectForSend(box); return; }
+  const saved = store.get("replyLang", "");
+  const langOpts = `<option value="">${esc(T("跟原信一樣", "Same as the email"))}</option>` +
+    LANGS.map(([c, label, name]) => `<option value="${esc(name)}"${name === saved ? " selected" : ""}>${esc(label)}</option>`).join("");
+  box.innerHTML = `<h4>✍️ ${H("回覆這封郵件", "Reply to this email")}</h4>
+    <p>${esc(T("回覆給：", "To: "))}<b data-k="to">${esc(m.from)}</b></p>
+    <label>${H("回覆用的語言", "Reply language")}<select data-k="lang">${langOpts}</select></label>
+    <p data-k="hint">${esc(T("按下面的大按鈕，用你自己的語言說想回覆什麼（例如：「謝謝，星期五十點我會到」）。說完再按一次。", "Tap the big button and say, in your own language, what you want to reply (e.g. \"Thanks, I'll be there Friday at 10\"). Tap again when done."))}</p>
+    <button class="bigmic" data-k="mic">🎤 ${H("按這裡說話", "Tap to speak")}</button>
+    <textarea data-k="say" placeholder="${esc(T("也可以在這裡打字", "Or type here"))}"></textarea>
+    <div class="acts"><button class="main" data-k="write">✨ ${H("請 AI 寫回覆", "Write the reply")}</button><button data-k="cancel">✖ ${esc(T("取消", "Cancel"))}</button></div>
+    <div data-k="draft" hidden>
+      <div class="explain" data-k="explain"></div>
+      <div class="warnbox" data-k="noreply" hidden>${esc(T("注意：這個地址看起來是「不接受回覆」的系統郵件，回覆可能沒有人會看到。", "Note: this looks like a no-reply address; nobody may read your reply."))}</div>
+      <label>${H("回覆內容（可以直接修改）", "Reply text (you can edit it)")}<textarea class="body" data-k="body"></textarea></label>
+      <div class="acts"><button class="send-ok" data-k="send">✅ ${H("寄出", "Send")}</button><button data-k="change">🎤 ${H("我要修改", "Change it")}</button><button data-k="cancel2">✖ ${esc(T("不寄了", "Don't send"))}</button></div>
+      <div data-k="confirm" hidden>
+        <p><b data-k="ask"></b></p>
+        <div class="row"><input data-k="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="••••"><button class="send" data-k="go">${H("確認寄出", "Confirm send")}</button></div>
+        <p data-k="cmsg"></p>
+      </div>
+    </div>`;
+  const q = (k) => box.querySelector(`[data-k="${k}"]`);
+  const st = { draft: null, busy: false };
+  q("lang").onchange = () => store.set("replyLang", q("lang").value);
+  const close = () => { if (dictRec) try { dictRec.stop(); } catch {} stopSpeaking(); box.hidden = true; box.innerHTML = ""; };
+  q("cancel").onclick = close; q("cancel2").onclick = close;
+  const write = async () => {
+    const said = q("say").value.trim();
+    if (!said) { toast(T("請先說或打你想回覆的內容。", "Say or type what you want to reply first.")); return; }
+    if (st.busy) return; st.busy = true;
+    const btn = q("write"), old = btn.innerHTML; btn.disabled = true; btn.textContent = T("AI 正在寫…", "Writing…");
+    try {
+      const lang = $("srcLang").value;
+      const d = await mailJSON("/api/mail/draft", { pin: mailPin, id: m.id, instruction: said,
+        reply_lang: q("lang").value || "same as the email", answer_lang: langName(lang), previous: st.draft ? q("body").value : "" });
+      st.draft = d;
+      q("draft").hidden = false; q("confirm").hidden = true;
+      q("explain").textContent = d.explain || T("回覆已寫好，請看下面。", "The reply is ready below.");
+      q("body").value = d.body; q("noreply").hidden = !d.noreply; q("to").textContent = d.to;
+      q("say").value = "";
+      q("hint").textContent = T("想改的話，按大按鈕說要怎麼改（例如：「客氣一點」、「改成星期六」），或直接修改下面的文字。", "To change it, tap the big button and say how (e.g. \"more polite\", \"make it Saturday\"), or edit the text below.");
+      q("mic").innerHTML = "🎤 " + H("說要怎麼改", "Say what to change");
+      btn.innerHTML = "✨ " + H("照我說的修改", "Revise it");
+      q("explain").scrollIntoView({ behavior: "smooth", block: "start" });
+      if ($("voiceReply").checked && d.explain) speak(d.explain, lang, true);
+      st.busy = false; btn.disabled = false; return;
+    } catch (e) { if (!handleMailError(e)) q("hint").textContent = e.message; }
+    st.busy = false; btn.disabled = false; btn.innerHTML = old;
+  };
+  q("write").onclick = write;
+  const listen = () => dictate(q("mic"), $("srcLang").value, (t) => { q("say").value = t; }, (t) => { if (t) write(); });
+  q("mic").onclick = listen;
+  q("change").onclick = () => { q("mic").scrollIntoView({ behavior: "smooth", block: "center" }); listen(); };
+  q("send").onclick = () => {
+    if (!q("body").value.trim()) { toast(T("回覆內容是空的。", "The reply is empty.")); return; }
+    stopSpeaking(); q("confirm").hidden = false; q("cmsg").textContent = "";
+    q("ask").textContent = T(`確定寄給 ${st.draft?.to || m.from}？請輸入你的 PIN：`, `Send to ${st.draft?.to || m.from}? Enter your PIN:`);
+    q("pin").value = ""; setTimeout(() => q("pin").focus(), 50);
+  };
+  const go = async () => {
+    const pin = q("pin").value.trim();
+    if (!pin) { q("pin").focus(); return; }
+    if (st.busy) return; st.busy = true; q("go").disabled = true;
+    try {
+      const r = await mailJSON("/api/mail/send", { pin, id: m.id, body: q("body").value });
+      box.innerHTML = `<h4>✓ ${H("已寄出", "Sent")}</h4><p>${esc(T("已回覆給：", "Replied to: "))}<b>${esc(r.to)}</b></p><p>${esc(r.subject)}</p>`;
+      toast("✓ " + T("已寄出", "Sent"));
+      if ($("voiceReply").checked) speak(T("已經寄出了。", "Your reply has been sent."), $("srcLang").value, true);
+    } catch (e) {
+      if (e.code === "need_send") { mailState.can_send = false; reconnectForSend(box); }
+      else if (e.code === "reconnect" || e.code === "not_connected") handleMailError(e);
+      else q("cmsg").textContent = e.message;
+    }
+    st.busy = false; const g = q("go"); if (g) g.disabled = false;
+  };
+  q("go").onclick = go;
+  q("pin").onkeydown = (e) => { if (e.key === "Enter") go(); };
+  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 $("digestBtn").onclick = async () => {
   unlockTts();

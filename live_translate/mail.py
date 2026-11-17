@@ -1,4 +1,4 @@
-"""Read-only Gmail for Muối Từ: each invite code can connect its owner's own Gmail.
+"""Gmail for Muối Từ: each invite code can connect its owner's own Gmail, read it, and reply.
 
 How it works
 - The owner taps "Connect Gmail" in the app, signs in on Google's own page and allows
@@ -13,11 +13,21 @@ How it works
 Google settings (see RAILWAY.md): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and PUBLIC_BASE_URL
 (the app's https address; the redirect URI is PUBLIC_BASE_URL + /api/mail/callback).
 In Google's "Testing" mode a connection expires after 7 days; the app then asks to reconnect.
+
+Replying (scope gmail.send, optional: the owner can untick it on Google's page)
+- The AI only drafts. Nothing is sent until the owner taps Send AND enters the PIN again.
+- A reply always goes to the sender of the email being answered (Reply-To, else From), worked
+  out here from the original message: neither the AI nor the email's text can choose another
+  address. At most MAIL_SENDS_PER_DAY replies per code per day (default 20); each is logged
+  (time, recipient, subject; not the text).
+- LIVE_TRANSLATE_MAIL_SEND=0 turns replying off (only read access is requested).
 """
 
 from __future__ import annotations
 
 import base64
+import email.policy
+import email.utils
 import hashlib
 import hmac
 import html
@@ -31,6 +41,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from email.message import EmailMessage
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -38,6 +49,9 @@ from cryptography.fernet import Fernet, InvalidToken
 from . import invites
 
 SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
+SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
+SEND_ON = os.environ.get("LIVE_TRANSLATE_MAIL_SEND", "1") != "0"
+SENDS_PER_DAY = int(os.environ.get("MAIL_SENDS_PER_DAY", "20"))
 # Overridable so tests can run against a local fake of Google.
 AUTH_URL = os.environ.get("GOOGLE_AUTH_URL", "https://accounts.google.com/o/oauth2/v2/auth")
 TOKEN_URL = os.environ.get("GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token")
@@ -97,6 +111,16 @@ def _db():
                connected_at  TEXT
            )"""
     )
+    if "scopes" not in {r[1] for r in conn.execute("PRAGMA table_info(mailboxes)")}:
+        conn.execute("ALTER TABLE mailboxes ADD COLUMN scopes TEXT NOT NULL DEFAULT ''")
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS mail_sent (
+               code     TEXT NOT NULL,
+               sent_at  REAL NOT NULL,
+               to_addr  TEXT,
+               subject  TEXT
+           )"""
+    )
     return conn
 
 
@@ -109,6 +133,7 @@ class Box:
     pin_salt: str | None
     fails: int
     locked_until: float
+    scopes: str = ""
 
 
 def _get(code: str) -> Box | None:
@@ -116,7 +141,8 @@ def _get(code: str) -> Box | None:
         row = _db().execute("SELECT * FROM mailboxes WHERE code = ?", (invites.normalize(code),)).fetchone()
     if not row:
         return None
-    return Box(row["code"], row["email"], row["refresh_enc"], row["pin_hash"], row["pin_salt"], row["fails"], row["locked_until"])
+    return Box(row["code"], row["email"], row["refresh_enc"], row["pin_hash"], row["pin_salt"], row["fails"], row["locked_until"],
+               row["scopes"] or "")
 
 
 def _save(code: str, **fields: Any) -> None:
@@ -198,6 +224,8 @@ def status(code: str) -> dict[str, Any]:
         "email": (box.email if box and box.refresh_enc else "") or "",
         "locked": bool(box and box.locked_until > time.time()),
         "pinned_to": allowed_address(code) or "",
+        "send_on": SEND_ON,
+        "can_send": bool(SEND_ON and box and box.refresh_enc and SEND_SCOPE in box.scopes.split()),
     }
 
 
@@ -225,7 +253,7 @@ def start_url(code: str, redirect_uri: str) -> str:
         _states[state] = (invites.normalize(code), now + 600)
     params = {
         "client_id": client_id(), "redirect_uri": redirect_uri, "response_type": "code",
-        "scope": SCOPE, "access_type": "offline", "prompt": "consent", "state": state,
+        "scope": SCOPE + (" " + SEND_SCOPE if SEND_ON else ""), "access_type": "offline", "prompt": "consent", "state": state,
         "include_granted_scopes": "true",
     }
     hint = allowed_address(code)
@@ -247,7 +275,8 @@ def finish(state: str, auth_code: str, redirect_uri: str) -> str:
     })
     if "refresh_token" not in tok or "access_token" not in tok:
         raise MailError(400, "token", f"Google 沒有給授權（{tok.get('error', 'unknown')}）。 / Google did not grant access.")
-    if SCOPE not in tok.get("scope", SCOPE):
+    granted = tok.get("scope", SCOPE).split()
+    if SCOPE not in granted:
         raise MailError(400, "scope", "需要勾選「讀取 Gmail」的權限。 / Please allow reading Gmail.")
     email = _api_get(tok["access_token"], "/users/me/profile").get("emailAddress", "").lower()
     pinned = allowed_address(code)
@@ -255,7 +284,7 @@ def finish(state: str, auth_code: str, redirect_uri: str) -> str:
         _post_form(REVOKE_URL, {"token": tok["refresh_token"]})
         raise MailError(403, "wrong_account", f"這個邀請碼只能連接 {pinned}，你登入的是 {email}。 / This code can only connect {pinned}.")
     _save(code, email=email, refresh_enc=_fernet().encrypt(tok["refresh_token"].encode()).decode(),
-          connected_at=time.strftime("%Y-%m-%d %H:%M"))
+          connected_at=time.strftime("%Y-%m-%d %H:%M"), scopes=" ".join(granted))
     _access[code] = (tok["access_token"], time.time() + int(tok.get("expires_in", 3600)) - 60)
     return email
 
@@ -268,7 +297,7 @@ def disconnect(code: str) -> None:
         except InvalidToken:
             pass
     _access.pop(invites.normalize(code), None)
-    _save(code, email=None, refresh_enc=None)
+    _save(code, email=None, refresh_enc=None, scopes="")
 
 
 def _access_token(code: str) -> str:
@@ -390,4 +419,83 @@ def read_message(code: str, msg_id: str, max_chars: int = 15000) -> dict[str, An
         "from": _header(msg, "From"), "to": _header(msg, "To"), "subject": _header(msg, "Subject"),
         "date": _header(msg, "Date"), "body": body[:max_chars], "truncated": len(body) > max_chars,
         "attachments": attachments,
+        "reply_to": _header(msg, "Reply-To"), "message_id": _header(msg, "Message-ID") or _header(msg, "Message-Id"),
+        "references": _header(msg, "References"), "thread_id": msg.get("threadId", ""),
     }
+
+
+# ----------------------------------------------------------------------------- replying
+
+def reply_target(m: dict[str, Any]) -> tuple[str, str]:
+    """(display name, address) a reply to this message goes to: Reply-To, else From."""
+    for raw in (m.get("reply_to", ""), m.get("from", "")):
+        name, addr = email.utils.parseaddr(raw)
+        if addr and re.fullmatch(r"[^@\s<>,;]+@[^@\s<>,;]+\.[^@\s<>,;]+", addr):
+            return name, addr
+    raise MailError(400, "no_sender", "找不到可以回覆的寄件人地址。 / This email has no address to reply to.")
+
+
+def reply_subject(subject: str) -> str:
+    subject = re.sub(r"[\r\n\t]+", " ", subject or "").strip()
+    return subject if re.match(r"(?i)^(re|回覆|答复|回复)\s*[:：]", subject) else ("Re: " + subject if subject else "Re:")
+
+
+def looks_noreply(addr: str) -> bool:
+    return bool(re.search(r"(?i)(no-?reply|do-?not-?reply|donotreply|mailer-daemon|notifications?@)", addr))
+
+
+def sent_today(code: str) -> int:
+    start = time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))
+    with invites._lock:
+        return _db().execute("SELECT COUNT(*) FROM mail_sent WHERE code = ? AND sent_at >= ?",
+                             (invites.normalize(code), start)).fetchone()[0]
+
+
+def send_reply(code: str, msg_id: str, body: str) -> dict[str, str]:
+    """Send `body` as a reply to message `msg_id`, to its sender only. Raises MailError."""
+    if not SEND_ON:
+        raise MailError(403, "send_off", "主人關閉了寄信功能。 / Sending email is turned off on this server.")
+    box = _get(code)
+    if not box or SEND_SCOPE not in box.scopes.split():
+        raise MailError(409, "need_send", "要回覆郵件，請重新連接 Gmail 並允許「寄送郵件」。 / To reply, reconnect Gmail and allow sending email.")
+    body = (body or "").strip()
+    if not body:
+        raise MailError(400, "empty", "回覆內容是空的。 / The reply is empty.")
+    if len(body) > 20000:
+        raise MailError(400, "too_long", "回覆太長了。 / The reply is too long.")
+    if sent_today(code) >= SENDS_PER_DAY:
+        raise MailError(429, "send_limit", f"今天已經寄了 {SENDS_PER_DAY} 封，明天再寄。 / Daily limit of {SENDS_PER_DAY} replies reached.")
+    m = read_message(code, msg_id)
+    name, addr = reply_target(m)
+    out = EmailMessage(policy=email.policy.SMTP)
+    out["To"] = email.utils.formataddr((name, addr)) if name else addr
+    out["Subject"] = reply_subject(m["subject"])
+    if m["message_id"]:
+        out["In-Reply-To"] = m["message_id"]
+        out["References"] = (m["references"] + " " + m["message_id"]).strip()
+    out.set_content(body)
+    payload: dict[str, Any] = {"raw": base64.urlsafe_b64encode(out.as_bytes()).decode()}
+    if m["thread_id"]:
+        payload["threadId"] = m["thread_id"]
+    token = _access_token(code)
+    req = urllib.request.Request(GMAIL_API + "/users/me/messages/send", data=json.dumps(payload).encode(),
+                                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            sent = json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            _access.pop(invites.normalize(code), None)
+            raise MailError(409, "reconnect", "Gmail 連接已失效，請重新連接。 / Please reconnect Gmail.")
+        if e.code == 403:
+            _save(code, scopes=" ".join(x for x in box.scopes.split() if x != SEND_SCOPE))
+            raise MailError(409, "need_send", "Google 不允許寄信：請重新連接 Gmail 並勾選「寄送郵件」。 / Google refused: reconnect Gmail and allow sending.")
+        raise MailError(502, "gmail", f"寄送失敗（{e.code}），請稍後再試。 / Sending failed ({e.code}).")
+    except urllib.error.URLError:
+        raise MailError(502, "gmail", "連不上 Gmail，請稍後再試。 / Can't reach Gmail right now.")
+    with invites._lock:
+        conn = _db()
+        conn.execute("INSERT INTO mail_sent (code, sent_at, to_addr, subject) VALUES (?, ?, ?, ?)",
+                     (invites.normalize(code), time.time(), addr, out["Subject"]))
+        conn.commit()
+    return {"to": addr, "subject": str(out["Subject"]), "id": sent.get("id", "")}

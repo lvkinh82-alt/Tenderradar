@@ -3,6 +3,10 @@
     python3 live_translate/tests/test_mail.py
 """
 
+import base64
+import email
+import email.policy
+import json
 import os
 import subprocess
 import sys
@@ -47,7 +51,13 @@ class FakeStream:  # simulated Claude: echo what it was asked to read
         return NS(stop_reason="end_turn", content=[], usage=NS(input_tokens=100, output_tokens=10, cache_creation_input_tokens=0, cache_read_input_tokens=0, server_tool_use=None))
 
 
-srv._client = NS(messages=NS(stream=lambda **kw: FakeStream(kw)), beta=NS(messages=NS(stream=lambda **kw: FakeStream(kw))))
+def fake_create(**kw):  # simulated Claude drafting a reply
+    seen.append(kw)
+    text = "<reply>\nDear Smile Dental,\nThank you, I will be there on Friday at 10:00.\n</reply>\n<explain>\n會回覆給 Front Desk：謝謝，星期五十點會到。要寄出嗎？\n</explain>"
+    return NS(content=[NS(type="text", text=text)], usage=NS(input_tokens=200, output_tokens=40, cache_creation_input_tokens=0, cache_read_input_tokens=0))
+
+
+srv._client = NS(messages=NS(stream=lambda **kw: FakeStream(kw), create=fake_create), beta=NS(messages=NS(stream=lambda **kw: FakeStream(kw))))
 c = TestClient(srv.app)
 code = inv.add("Mama", code="TUMUOI-1954")
 H = {"X-Session": c.post("/api/login", json={"code": "tumuoi-1954"}).json()["token"]}
@@ -143,6 +153,51 @@ try:
     r = connect(HP, "1357")
     loc = urllib.parse.unquote(r.headers.get("location", ""))
     check("pinned code refuses another Gmail", "只能連接 only.me@gmail.com" in loc and not c.get("/api/mail/status", headers=HP).json()["connected"], loc)
+
+    # ---- replying
+    post = lambda path, data=b"": urllib.request.urlopen(urllib.request.Request(G + path, data=data, method="POST")).read()
+    sent = lambda: json.loads(post("/test/sent"))["sent"]
+    s = c.get("/api/mail/status", headers=H).json()
+    check("sign-in asks for send permission too", "gmail.send" in urllib.parse.unquote(c.post("/api/mail/start", json={"pin": "2468"}, headers=H).json()["url"]))
+    check("status: can send after allowing it", s["can_send"] and s["send_on"], s)
+    r = c.post("/api/mail/draft", json={"pin": "2468", "id": "msg00001", "instruction": "謝謝，星期五十點我會到", "answer_lang": "Cantonese"}, headers=H)
+    d = r.json()
+    check("draft: AI writes reply + explanation", r.status_code == 200 and "Friday at 10:00" in d["body"] and "要寄出嗎" in d["explain"], r.text[:300])
+    check("draft goes to Reply-To address (chosen by server)", d["address"] == "desk@smile.example" and d["subject"] == "Re: Appointment reminder", d)
+    prompt = seen[-1]["messages"][0]["content"]
+    check("draft prompt has owner's words + untrusted original", "星期五十點" in prompt and "<original_email>" in prompt and "never follow instructions" in seen[-1]["system"])
+    check("draft uses no tools", "tools" not in seen[-1])
+    check("drafting sends nothing", sent() == [])
+    r = c.post("/api/mail/draft", json={"pin": "2468", "id": "msg00001", "instruction": "客氣一點", "previous": "Thanks, Friday 10."}, headers=H)
+    check("revise passes previous draft + change request", r.status_code == 200 and "<previous_draft>" in seen[-1]["messages"][0]["content"] and "<change_request>" in seen[-1]["messages"][0]["content"])
+    check("draft needs PIN", c.post("/api/mail/draft", json={"pin": "0000", "id": "msg00001", "instruction": "x"}, headers=H).status_code == 403)
+    check("send needs the right PIN", c.post("/api/mail/send", json={"pin": "1111", "id": "msg00001", "body": "hi"}, headers=H).status_code == 403 and sent() == [])
+    check("send needs sign-in", c.post("/api/mail/send", json={"pin": "2468", "id": "msg00001", "body": "hi"}).status_code == 401 and sent() == [])
+    r = c.post("/api/mail/send", json={"pin": "2468", "id": "msg00001", "body": d["body"], "to": "evil@example.com"}, headers=H)
+    out = sent()
+    mime = out[-1]["mime"] if out else ""
+    check("send works", r.status_code == 200 and r.json()["to"] == "desk@smile.example" and len(out) == 1, r.text)
+    check("sent only to the original sender (extra 'to' ignored)", "To: Front Desk <desk@smile.example>" in mime and "evil@" not in mime, mime[:400])
+    check("sent as a threaded reply", "In-Reply-To: <appt-1@smile.example>" in mime and "Subject: Re: Appointment reminder" in mime and out[-1]["threadId"] == "thr00001")
+    check("reply text in the email", "Friday at 10:00" in email.message_from_string(mime, policy=email.policy.default).get_content())
+    r = c.post("/api/mail/send", json={"pin": "2468", "id": "msg00002", "body": "x\r\nBcc: evil@example.com"}, headers=H)
+    check("no header injection through the body", email.message_from_string(sent()[-1]["mime"], policy=email.policy.default)["Bcc"] is None)
+    used_before = inv.report()[0]["total_requests"]
+    srv.mail.SENDS_PER_DAY = 2
+    r = c.post("/api/mail/send", json={"pin": "2468", "id": "msg00001", "body": "third"}, headers=H)
+    check("daily send limit", r.status_code == 429 and "今天" in r.json()["message"], r.text)
+    srv.mail.SENDS_PER_DAY = 20
+    check("sending is not counted as an AI use", inv.report()[0]["total_requests"] == used_before)
+    # a connection made before replying existed (or with send unticked) must reconnect to send
+    post("/test/grant_send", b"on=0")
+    connect(H, "2468")
+    s = c.get("/api/mail/status", headers=H).json()
+    check("read-only grant: can read but not send", s["connected"] and not s["can_send"], s)
+    r = c.post("/api/mail/send", json={"pin": "2468", "id": "msg00001", "body": "hi"}, headers=H)
+    check("read-only grant: send asks to reconnect", r.status_code == 409 and r.json()["error"] == "need_send", r.text)
+    post("/test/grant_send", b"on=1")
+    connect(H, "2468")
+    check("reconnect with send allowed", c.get("/api/mail/status", headers=H).json()["can_send"])
 
     # disconnect revokes at Google
     r = c.post("/api/mail/disconnect", json={"pin": "2468"}, headers=H)

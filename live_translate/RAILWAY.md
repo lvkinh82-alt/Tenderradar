@@ -72,9 +72,9 @@
 - 管理密码不要用简单的字；`/admin` 网址不要分享。
 - 建议在 Anthropic Console 设每月花费上限。
 
-## 📧 Gmail（「我的郵件」功能，只讀）
+## 📧 Gmail（「我的郵件」功能：看信、AI 帮忙回信）
 
-让持有邀请码的人连接**自己的** Gmail，AI 用他的语言说明每封信。只会**读取**，不会删信、不会寄信。
+让持有邀请码的人连接**自己的** Gmail，AI 用他的语言说明每封信，也可以帮忙**回信**。不会删信。
 每个人都要在 Google 自己的页面登录并按「允许」，App 永远拿不到 Gmail 密码；看邮件还要输入他自己设的 **PIN**。
 
 ### 1. 在 Google Cloud 建立「OAuth 应用」（免费，只做一次）
@@ -85,7 +85,9 @@
    - 应用名称：`Muối Từ`；用户支持邮箱：你的邮箱
    - 目标对象（Audience）：**外部 External**
    - 联系邮箱：你的邮箱 → 同意条款 → 创建
-4. **数据访问（Data access）** → 添加或移除范围 → 勾选 `.../auth/gmail.readonly`（"View your email messages and settings"）→ 更新 → 保存。
+4. **数据访问（Data access）** → 添加或移除范围 → 勾选这两个 → 更新 → 保存：
+   - `.../auth/gmail.readonly`（"View your email messages and settings"，看信）
+   - `.../auth/gmail.send`（"Send email on your behalf"，回信）
 5. **目标对象（Audience）** → 发布状态保持 **「测试中 Testing」** → **测试用户 → 添加用户**：把每个要用的 Gmail 加进来（例如 `tumuoi1954@gmail.com`）。最多 100 个。
 6. **客户端（Clients）** → **创建客户端**：
    - 应用类型：**Web 应用**
@@ -114,6 +116,15 @@ LIVE_TRANSLATE_MAILBOXES=TUMUOI-1954=tumuoi1954@gmail.com, LETAM-1972=letam1972@
 - **测试模式每 7 天要重新连接一次**：到期时 App 会提示「重新连接」，重新按一次即可，PIN 不变。
 - 忘记 PIN：在 `/admin?token=管理密码` 那一行按「重设 PIN」，对方重新设定并连接。
 - 不想要郵件功能：不设 `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` 即可。
+
+### ✍️ AI 帮忙回信
+
+- 每封信下面有「✍️ 回覆」→ 按大按钮用自己的语言**说**想回什么（或打字）→ AI 用原信的语言（或你选的语言）写好回信，并用你的语言念给你听「会寄给谁、内容是什么」。
+- 想改就再按「🎤 我要修改」说怎么改（例如「客气一点」「改成星期六」），也可以直接改文字。
+- **一定要按「✅ 寄出」并再输入一次 PIN 才会寄出**；AI 自己不会寄。
+- 只能**回覆给原寄件人**（信里的 Reply-To，没有就是 From），地址由服务器决定，AI 和信件内容都改不了；每个邀请码每天最多寄 20 封（`MAIL_SENDS_PER_DAY` 可改）。
+- 加这个功能之前就已连接的人：按「回覆」时会提示「重新连接 Gmail」，在 Google 页面勾选「传送电子邮件」即可。
+- 不想要回信功能：设 `LIVE_TRANSLATE_MAIL_SEND=0`（只会要求「读信」权限）。
 
 ### 隐私说明
 
