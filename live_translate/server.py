@@ -768,6 +768,8 @@ def admin(token: str = ""):
         f"<td>{r['total_requests']}</td><td>${r['cost_usd']:.4f}</td><td>{device_cell(r['code'])}</td><td>{mail_cell(r['code'])}</td></tr>"
         for r in rows
     )
+    problems = "".join(f"<p style='background:#fef2f2;border:2px solid #dc2626;padding:8px 12px;border-radius:8px'>"
+                       f"⚠️ LIVE_TRANSLATE_INVITES 有一段寫錯，已略過：{html.escape(p)}</p>" for p in invites.SPEC_PROBLEMS)
     page = f"""<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
 <title>Muối Từ 用量</title><style>
@@ -775,7 +777,7 @@ body{{font:15px/1.5 system-ui,sans-serif;margin:0;padding:16px;background:#f6f7f
 h1{{font-size:18px}} .wrap{{overflow-x:auto}} table{{border-collapse:collapse;background:#fff;min-width:520px;width:100%}}
 th,td{{padding:8px 10px;border-bottom:1px solid #e3e6ee;text-align:left;white-space:nowrap}} th{{color:#6b7385;font-weight:600}}
 .sum{{margin-top:12px;color:#047857;font-weight:600}} .note{{color:#6b7385;font-size:13px}}
-</style></head><body><h1>Muối Từ · 邀請碼用量</h1>
+</style></head><body><h1>Muối Từ · 邀請碼用量</h1>{problems}
 <div class="wrap"><table><tr><th>邀請碼</th><th>名字</th><th>狀態</th><th>今日 / 上限</th><th>累計次數</th><th>估計費用</th><th>裝置</th><th>Gmail</th></tr>{trs}</table></div>
 <div class="sum">全部估計費用：${total:.4f}</div>
 <p class="note">模型：{html.escape(MODEL)}。實際帳單以 Anthropic Console 為準。</p></body></html>"""
@@ -831,6 +833,8 @@ def main() -> None:
     if spec:
         entries = invites.sync_from_env(spec)
         print(f"已從 LIVE_TRANSLATE_INVITES 載入 {len(entries)} 個邀請碼：" + "、".join(n for n, _, _ in entries))
+        for problem in invites.SPEC_PROBLEMS:
+            print("⚠️ LIVE_TRANSLATE_INVITES 有一段寫錯，已略過：" + problem)
     if REQUIRE_INVITE and not invites.any_codes():
         print('提醒：還沒有任何邀請碼，所有翻譯都會被拒絕。先執行：./live_translate/invite.sh add "名字"（或 python3 -m live_translate.invites add "名字"）')
     host = os.environ.get("HOST", "127.0.0.1")

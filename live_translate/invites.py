@@ -294,12 +294,22 @@ def last_seen(code: str) -> float | None:
     return row["t"] if row and row["t"] else None
 
 
-def parse_spec(spec: str) -> list[tuple[str, str, int]]:
-    """Parse "Mama:TUMUOI-1954, 阿明:TUMUOI-2024:200" (or one entry per line) into (name, code, limit)."""
+def parse_spec(spec: str, problems: list[str] | None = None) -> list[tuple[str, str, int]]:
+    """Parse "Mama:TUMUOI-1954, 阿明:TUMUOI-2024:200" (or one entry per line) into (name, code, limit).
+
+    With `problems` given, entries written wrongly are skipped and described there instead of
+    raising, so one typo can't stop the whole server.
+    """
     out = []
     for raw in spec.replace("\n", ",").split(","):
         item = raw.strip()
         if not item:
+            continue
+        if problems is not None:
+            try:
+                out.extend(parse_spec(item))
+            except ValueError as e:
+                problems.append(str(e))
             continue
         parts = [p.strip() for p in item.split(":")]
         if len(parts) not in (2, 3) or not parts[0] or not parts[1]:
@@ -315,13 +325,20 @@ def parse_spec(spec: str) -> list[tuple[str, str, int]]:
     return out
 
 
+SPEC_PROBLEMS: list[str] = []  # entries in LIVE_TRANSLATE_INVITES that were skipped (shown on /admin)
+
+
 def sync_from_env(spec: str) -> list[tuple[str, str, int]]:
     """Make the database match an invite list kept in an environment variable (used on Railway).
 
     Listed codes are created or updated and enabled; codes not in the list are disabled
-    (not deleted, so their usage history is kept).
+    (not deleted, so their usage history is kept). Entries written wrongly are skipped and
+    listed in SPEC_PROBLEMS; if nothing valid is left, existing codes are left as they are.
     """
-    entries = parse_spec(spec)
+    SPEC_PROBLEMS[:] = []
+    entries = parse_spec(spec, SPEC_PROBLEMS)
+    if not entries and SPEC_PROBLEMS:
+        return entries
     now = datetime.now().isoformat(timespec="seconds")
     with _lock:
         conn = db()
