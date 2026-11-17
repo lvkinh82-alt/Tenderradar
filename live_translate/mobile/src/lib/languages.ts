@@ -3,7 +3,7 @@ export type Lang = readonly [code: string, label: string, name: string];
 
 export const LANGS: readonly Lang[] = [
   ["zh-TW", "繁體中文（台灣）", "Traditional Chinese (Taiwan)"],
-  ["zh-HK", "粵語（香港）", "Cantonese / Traditional Chinese (Hong Kong)"],
+  ["zh-HK", "粵語（香港）", "Cantonese (colloquial Hong Kong Cantonese as people actually speak it, written in Traditional Chinese characters with words like 係、喺、唔、嘅、咗)"],
   ["zh-CN", "简体中文", "Simplified Chinese"],
   ["en-US", "English (US)", "American English"],
   ["en-GB", "English (UK)", "British English"],

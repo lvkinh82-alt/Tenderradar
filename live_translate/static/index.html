@@ -195,6 +195,11 @@
   .tile small .en { font-size:.95em; opacity:.85; }
   .card .srcs { margin-top:10px; font-size:.85rem; color:var(--muted); }
   .card .srcs a { display:block; color:var(--a); padding:3px 0; word-break:break-word; }
+  .card .ltag { display:inline-block; margin-top:10px; font-size:.75rem; font-weight:800; padding:2px 10px; border-radius:999px;
+    background:var(--bg); border:var(--edge-w) solid var(--edge); color:var(--muted); }
+  .card .ltag.tgt-tag { background:var(--brand-soft); border-color:var(--brand); color:var(--brand); }
+  .card .src { margin-top:4px; }
+  .card .tgt { margin-top:4px; }
   .card .status-line { margin-top:8px; font-size:.95rem; color:var(--brand); font-weight:700; }
   .listening b { color:var(--brand); }
   .listening::before { content:none; }
@@ -428,7 +433,7 @@ function applyI18n() {
 // ===================== data & helpers =====================
 const LANGS = [
   ["zh-TW","繁體中文（台灣）","Traditional Chinese (Taiwan)"],
-  ["zh-HK","粵語（香港）","Cantonese / Traditional Chinese (Hong Kong)"],
+  ["zh-HK","粵語（香港）","Cantonese (colloquial Hong Kong Cantonese as people actually speak it, written in Traditional Chinese characters with words like 係、喺、唔、嘅、咗)"],
   ["zh-CN","简体中文","Simplified Chinese"],
   ["en-US","English (US)","American English"],
   ["en-GB","English (UK)","British English"],
@@ -673,7 +678,7 @@ function stopListening() {
 }
 function restartIfListening() { if (listening) { const s = activeSpeaker; stopListening(); startListening(s); } }
 function setInterim(t) { $("interim").innerHTML = t ? `<b>${esc(T("正在聽：", "Hearing:"))}</b> ${esc(t)}` : ""; show("interim", !!t); }
-const who = (sp) => sp === "A" ? T("你", "You") : T("對方", "Other person");
+const whoZh = (sp) => sp === "A" ? "你" : "對方", whoEn = (sp) => sp === "A" ? "you" : "the other person";
 function renderListening() {
   const on = listening && mode === "speech";
   $("micBtn").className = "big" + (on ? " rec" : "");
@@ -681,8 +686,8 @@ function renderListening() {
   if (twoWay()) {
     const cur = activeSpeaker || "A";
     $("micHint").textContent = !on ? T("按一下開始。說完一句會自動翻譯、唸出來，再換另一個人說", "Tap to start. Each sentence is translated and read aloud, then it switches speakers")
-      : micPausedForTts ? T(`🔊 正在唸翻譯…唸完換「${who(cur)}」說 ${langLabel(langOf(cur))}`, `🔊 Reading the translation… then ${who(cur)} speaks ${langLabel(langOf(cur))}`)
-      : T(`正在聽「${who(cur)}」說 ${langLabel(langOf(cur))}…（換人說話可以點上面）`, `Listening to ${who(cur)} (${langLabel(langOf(cur))})… tap above to switch`);
+      : micPausedForTts ? T(`🔊 正在唸翻譯…唸完換「${whoZh(cur)}」說 ${langLabel(langOf(cur))}`, `🔊 Reading the translation… then ${whoEn(cur)} speaks`)
+      : T(`正在聽「${whoZh(cur)}」說 ${langLabel(langOf(cur))}（換人可點上面）`, `Listening to ${whoEn(cur)}… tap above to switch`);
     for (const sp of ["A", "B"]) {
       $("turn" + sp).classList.toggle("on", on ? cur === sp : sp === "A");
       const now = on && cur === sp;
@@ -802,7 +807,7 @@ function renderCard(seg) {
   const el = document.createElement("div");
   el.className = "card" + (seg.speaker ? " " + seg.speaker : ""); el.id = "c" + seg.id;
   el.innerHTML = `<div class="meta"><span class="who"></span><span class="time"></span></div>
-    <div class="src"></div><div class="status-line" hidden></div><div class="tgt"></div><div class="srcs" hidden></div><div class="explain" hidden></div><div class="acts"></div>`;
+    <div class="ltag src-tag" hidden></div><div class="src"></div><div class="status-line" hidden></div><div class="ltag tgt-tag" hidden></div><div class="tgt"></div><div class="srcs" hidden></div><div class="explain" hidden></div><div class="acts"></div>`;
   const ai = AI_KINDS.has(seg.kind);
   el.querySelector(".who").textContent = cardMeta(seg);
   el.querySelector(".time").textContent = new Date(seg.t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -846,6 +851,11 @@ function updateCard(seg, metaToo) {
   const el = $("c" + seg.id);
   const newest = seg === segments[segments.length - 1];
   if (el && metaToo) el.querySelector(".who").textContent = cardMeta(seg);
+  if (el && !AI_KINDS.has(seg.kind)) { // label the original and the translation with their languages
+    const st = el.querySelector(".src-tag"), tt = el.querySelector(".tgt-tag");
+    st.textContent = T("原文", "Original") + " · " + langLabel(seg.from); show(st, seg.from !== "auto" && !el.querySelector(".src").hidden);
+    tt.textContent = T("翻譯", "Translation") + " · " + langLabel(seg.to); show(tt, true);
+  }
   if (el) {
     const tgt = el.querySelector(".tgt");
     tgt.className = "tgt" + (seg.state === "pending" ? " caret" : "") + (seg.state === "error" ? " err" : "");
@@ -894,13 +904,35 @@ function speak(text, lang, now) {
   if (now) { current = null; speechSynthesis.cancel(); ttsQueue.length = 0; speaking = false; }
   ttsQueue.push([text, lang]); if (!speaking) nextTts();
 }
+// Voice for a language. Cantonese and Mandarin share the "zh" prefix, so never fall back
+// across them: reading Cantonese with a Mandarin voice sounds wrong.
+const normLang = (l) => (l || "").replace("_", "-").toLowerCase();
+const isCantonese = (l) => /^(zh-hk|zh-mo|yue)/.test(normLang(l));
+let voiceWarned = false;
+function pickVoice(lang) {
+  const voices = speechSynthesis.getVoices();
+  const want = normLang(lang);
+  const exact = voices.find(v => normLang(v.lang) === want);
+  if (exact) return exact;
+  if (isCantonese(lang)) {
+    const yue = voices.find(v => isCantonese(v.lang));
+    if (yue) return yue;
+    if (voices.length && !voiceWarned) {
+      voiceWarned = true;
+      showWarn(T("這支手機還沒有粵語語音，所以唸出來可能不是粵語。iPhone：設定 → 輔助使用 → 朗讀內容 → 聲音 → 中文 → 下載「粵語（香港）」；Android：設定 → 文字轉語音 → 安裝粵語語音資料。",
+                 "This phone has no Cantonese voice yet, so it may not read in Cantonese. iPhone: Settings → Accessibility → Spoken Content → Voices → Chinese → download Cantonese (Hong Kong). Android: Settings → Text-to-speech → install Cantonese voice data."));
+    }
+    return null; // let the system pick for zh-HK rather than force a Mandarin voice
+  }
+  const base = want.split("-")[0];
+  return voices.find(v => normLang(v.lang).startsWith(base + "-") && !isCantonese(v.lang)) || voices.find(v => normLang(v.lang) === base) || null;
+}
 function nextTts() {
   const item = ttsQueue.shift(); if (!item) { speaking = false; resumeMicAfterTts(); return; }
   speaking = true;
   const u = new SpeechSynthesisUtterance(item[0]); u.lang = item[1];
-  const voices = speechSynthesis.getVoices();
-  const voice = voices.find(v => v.lang === item[1]) || voices.find(v => v.lang.startsWith(item[1].split("-")[0]));
-  if (voice) u.voice = voice;
+  const voice = pickVoice(item[1]);
+  if (voice) { try { u.voice = voice; } catch {} }
   current = u;
   u.onend = u.onerror = () => { if (current === u) nextTts(); }; // ignore late events from cancelled utterances
   speechSynthesis.speak(u);
