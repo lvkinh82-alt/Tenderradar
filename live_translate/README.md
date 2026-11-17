@@ -9,6 +9,8 @@
 | 🎙 演講字幕 | 連續聆聽，每句話說完後立即串流翻譯 |
 | 💬 雙人對話 | A / B 兩人各用自己的語言輪流說話，雙向互譯 |
 | ⌨️ 文字翻譯 | 輸入文字（自動偵測語言） |
+| 🔎 問 AI（會上網查） | 開口問或打字問；需要最新資訊（天氣、新聞、價格、營業時間…）時 AI 會自己上網搜尋，回答會唸出來並附上資料來源 |
+| 🌐 中英雙語介面 | 所有文字、按鈕、提示都有中文和英文；設定裡可選「雙語 / 只中文 / 只英文」 |
 | 📹 視訊助手 | 打開鏡頭，開口問（或打字問）；AI 看當下畫面回答，並一句一句即時唸出來（可關閉），畫面上的外文也會翻譯。回答疊在鏡頭畫面上 |
 | 🖼 上傳圖片 | 在視訊助手裡從相簿選圖或拍照：自動說明並翻譯圖上文字，之後可針對同一張圖繼續追問 |
 | ✍️ 社群輸入 | 用母語寫訊息 / 貼文 → 翻譯後自動複製，直接貼到 IG、TikTok、X、WhatsApp、Discord |
@@ -92,6 +94,8 @@ python3 -m live_translate.invites delete  MT-XXXX-XXXX          # 刪除
 | `LIVE_TRANSLATE_REQUIRE_INVITE` | `1` | `0` = 不檢查邀請碼 |
 | `LIVE_TRANSLATE_DB` | `live_translate/data/invites.db` | 邀請碼資料庫位置 |
 | `LIVE_TRANSLATE_INVITES` | — | 用變數管理邀請碼：`名字:碼[:每日上限]`，逗號分隔；沒列出的碼會停用 |
+| `LIVE_TRANSLATE_WEB_SEARCH` | `1` | `0` = 關閉 AI 上網搜尋（問 AI、拍給 AI 看） |
+| `LIVE_TRANSLATE_PRICE_SEARCH` | `0.01` | 估計費用用的每次搜尋單價（美元） |
 | `LIVE_TRANSLATE_ADMIN_TOKEN` | — | 設定後可開 `/admin?token=…` 看用量 |
 | `LIVE_TRANSLATE_PRICE_IN` / `_OUT` | 依模型自動 | 估計費用用的單價（美元 / 百萬 token） |
 

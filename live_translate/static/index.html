@@ -182,16 +182,32 @@
   #caption .c-tgt { font-size:var(--cap, 6vh); font-weight:700; line-height:1.3; }
   #caption .c-bar { position:absolute; top:calc(16px + env(safe-area-inset-top)); left:16px; right:16px; display:flex; gap:8px; }
   #caption .c-bar button { background:#222; color:#fff; border-radius:999px; padding:10px 16px; min-height:48px; font-weight:700; }
+
+  /* ---------- bilingual labels: English sits under the Chinese, a little smaller ---------- */
+  .en { display:block; font-size:.74em; font-weight:600; opacity:.78; line-height:1.3; margin-top:1px; letter-spacing:.1px; }
+  .title .en { font-size:.62em; }
+  .link-btn .en { display:inline; margin-left:4px; }
+  /* header buttons: compact, Chinese over English, so the screen title keeps its room */
+  .top .pill-btn { flex-direction:column; justify-content:center; gap:0; padding:6px 12px; line-height:1.15; position:relative; min-width:60px; }
+  .top .pill-btn .en { font-size:.68em; margin:0; }
+  .top #settingsBtn .dot { position:absolute; top:6px; right:6px; width:9px; height:9px; }
+  .title { font-size:1.08rem; line-height:1.2; }
+  .tile small .en { font-size:.95em; opacity:.85; }
+  .card .srcs { margin-top:10px; font-size:.85rem; color:var(--muted); }
+  .card .srcs a { display:block; color:var(--a); padding:3px 0; word-break:break-word; }
+  .card .status-line { margin-top:8px; font-size:.95rem; color:var(--brand); font-weight:700; }
+  .listening b { color:var(--brand); }
+  .listening::before { content:none; }
 </style>
 </head>
 <body>
 
 <header class="top">
-  <button class="pill-btn" id="backBtn" hidden aria-label="回首頁">‹ 首頁</button>
+  <button class="pill-btn" id="backBtn" hidden data-h="back"></button>
   <div class="brand" id="brand"><b>Muối Từ</b><span>Phiên Dịch AI</span></div>
   <div class="title" id="viewTitle" hidden></div>
   <div class="spacer" id="topSpacer"></div>
-  <button class="pill-btn" id="settingsBtn" aria-label="設定"><span class="dot" id="dot"></span>⚙️ 設定</button>
+  <button class="pill-btn" id="settingsBtn"><span class="dot" id="dot"></span><span data-h="settings"></span></button>
 </header>
 
 <main>
@@ -200,45 +216,46 @@
   <!-- ================= HOME ================= -->
   <section id="home">
     <div class="invite-card" id="inviteCard" hidden>
-      <h2>🔑 請輸入邀請碼</h2>
-      <div style="color:var(--muted)">邀請碼由送你這個網址的人提供，輸入一次就會記住。</div>
+      <h2 data-h="inviteTitle"></h2>
+      <div style="color:var(--muted)" data-h="inviteWhy"></div>
       <div class="invite-row">
-        <input type="text" id="inviteHome" placeholder="例如 TUMUOI-1954" autocomplete="off" autocapitalize="characters" spellcheck="false">
-        <button class="send" data-save-invite="inviteHome">確認</button>
+        <input type="text" id="inviteHome" data-ph="inviteEg" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <button class="send" data-save-invite="inviteHome" data-h="ok"></button>
       </div>
       <div class="status" id="inviteHomeStatus"></div>
     </div>
 
-    <div class="hello">您好！今天要做什麼？</div>
-    <p class="sub">點一下下面的大按鈕就可以開始。</p>
+    <div class="hello" data-h="hello"></div>
+    <p class="sub" data-h="helloSub"></p>
     <div class="tiles">
-      <button class="tile main" data-go="speech"><span class="ic">🎙</span><span><b>聽我說，幫我翻譯</b><small>你說中文就唸英文，對方說英文就唸中文，自動輪流（依你選的語言）</small></span></button>
-      <button class="tile" data-go="convo"><span class="ic">💬</span><span><b>兩個人對話</b><small>你說一句、對方說一句，自動雙向翻譯</small></span></button>
-      <button class="tile" data-go="vision"><span class="ic">📹</span><span><b>拍給 AI 看</b><small>用鏡頭或照片問 AI：藥盒、菜單、路牌、說明書</small></span></button>
-      <button class="tile" data-go="text"><span class="ic">⌨️</span><span><b>打字翻譯</b><small>輸入任何語言的文字，自動翻譯</small></span></button>
-      <button class="tile" data-go="compose"><span class="ic">✍️</span><span><b>寫訊息給朋友</b><small>用自己的話寫，翻好自動複製，直接貼到聊天</small></span></button>
+      <button class="tile main" data-go="speech"><span class="ic">🎙</span><span><b data-h="tSpeech"></b><small data-h="tSpeechD"></small></span></button>
+      <button class="tile" data-go="convo"><span class="ic">💬</span><span><b data-h="tConvo"></b><small data-h="tConvoD"></small></span></button>
+      <button class="tile" data-go="ask"><span class="ic">🔎</span><span><b data-h="tAsk"></b><small data-h="tAskD"></small></span></button>
+      <button class="tile" data-go="vision"><span class="ic">📹</span><span><b data-h="tVision"></b><small data-h="tVisionD"></small></span></button>
+      <button class="tile" data-go="text"><span class="ic">⌨️</span><span><b data-h="tText"></b><small data-h="tTextD"></small></span></button>
+      <button class="tile" data-go="compose"><span class="ic">✍️</span><span><b data-h="tCompose"></b><small data-h="tComposeD"></small></span></button>
     </div>
   </section>
 
   <!-- ================= WORK VIEW (shared by every function) ================= -->
   <section id="work" hidden>
     <div class="langbar" id="langbar">
-      <div class="lf"><label for="srcLang" id="srcLabel">我說的語言</label><select id="srcLang"></select></div>
-      <button class="swap" id="swap" aria-label="交換語言">⇄</button>
-      <div class="lf" id="tgtBox"><label for="tgtLang" id="tgtLabel">翻譯成</label><select id="tgtLang"></select></div>
+      <div class="lf"><label for="srcLang" id="srcLabel"></label><select id="srcLang"></select></div>
+      <button class="swap" id="swap" aria-label="⇄">⇄</button>
+      <div class="lf" id="tgtBox"><label for="tgtLang" id="tgtLabel"></label><select id="tgtLang"></select></div>
     </div>
-    <div class="subrow" id="captionRow"><button class="link-btn" id="captionBtn">🖥 全螢幕大字幕</button></div>
+    <div class="subrow" id="captionRow"><button class="link-btn" id="captionBtn" data-h="caption"></button></div>
 
     <div class="stage" id="stage" hidden>
       <video id="cam" playsinline muted autoplay></video>
-      <img class="still" id="still" alt="上傳的照片" hidden>
-      <div class="off" id="camOff"><div><b>📷</b>按下面「開口問」或「看一下」<br>就會打開鏡頭</div></div>
+      <img class="still" id="still" alt="" hidden>
+      <div class="off" id="camOff"><div><b>📷</b><span data-h="camOff"></span></div></div>
       <div class="state" id="camState" hidden></div>
-      <div class="tools"><button id="camBtn">📷 開鏡頭</button><button id="camFlip" aria-label="切換前後鏡頭">🔄 前/後</button></div>
+      <div class="tools"><button id="camBtn"></button><button id="camFlip" data-h="flip"></button></div>
       <div class="answer" id="camAnswer" hidden><div class="q" id="camQ"></div><div id="camA"></div></div>
     </div>
 
-    <div class="sect" id="feedTitle">📝 翻譯紀錄（最新的在最上面）</div>
+    <div class="sect" id="feedTitle"></div>
     <div class="listening" id="interim" hidden></div>
     <div id="feed"></div>
   </section>
@@ -253,98 +270,161 @@
         <span class="arrow">⇄</span>
         <button class="turn B" id="turnB"></button>
       </div>
-      <button class="big" id="micBtn">🎙 開始聽</button>
-      <div class="hint" id="micHint">按一下開始，說完一句就會自動翻譯</div>
+      <button class="big" id="micBtn"></button>
+      <div class="hint" id="micHint"></div>
     </div>
     <div id="dConvo">
       <div class="two">
         <button class="talk A" id="talkA"></button>
         <button class="talk B" id="talkB"></button>
       </div>
-      <div class="hint">輪到誰說話，就按誰的按鈕；再按一下停止</div>
+      <div class="hint" data-h="convoHint"></div>
     </div>
-    <div id="dVision">
-      <button class="big" id="askBtn">🎙 按一下，開口問</button>
-      <div class="row3">
-        <button class="soft" id="lookBtn">👀 看一下</button>
-        <button class="soft" id="uploadBtn">🖼 上傳照片</button>
-        <button class="soft" id="typeBtn">⌨️ 打字問</button>
+    <div id="dAsk">
+      <button class="big" id="askBtn"></button>
+      <div class="row3" id="visionRow">
+        <button class="soft" id="lookBtn" data-h="look"></button>
+        <button class="soft" id="uploadBtn" data-h="upload"></button>
+        <button class="soft" id="typeBtn" data-h="typeAsk"></button>
       </div>
       <input type="file" id="imgFile" accept="image/*" hidden>
     </div>
     <div class="typing" id="dTyping" style="margin-top:10px">
-      <textarea id="textIn" rows="1" placeholder="在這裡輸入…"></textarea>
-      <button class="send" id="sendText">翻譯</button>
+      <textarea id="textIn" rows="1"></textarea>
+      <button class="send" id="sendText"></button>
     </div>
   </div>
 </div>
 
 <!-- ================= SETTINGS ================= -->
 <div class="sheet-bg" id="sheetBg" hidden></div>
-<div class="sheet" id="sheet" hidden role="dialog" aria-label="設定">
+<div class="sheet" id="sheet" hidden role="dialog">
   <div class="sheet-in">
-    <div class="sheet-head"><h2>⚙️ 設定</h2><button class="pill-btn" id="sheetClose">完成</button></div>
+    <div class="sheet-head"><h2 data-h="settings"></h2><button class="pill-btn" id="sheetClose" data-h="done"></button></div>
 
     <div class="group">
-      <h3>連線</h3>
+      <h3 data-h="gUi"></h3>
       <div class="item">
-        <div style="font-weight:700">邀請碼</div>
-        <div class="invite-row">
-          <input type="text" id="inviteSet" placeholder="例如 TUMUOI-1954" autocomplete="off" autocapitalize="characters" spellcheck="false">
-          <button class="send" data-save-invite="inviteSet">確認</button>
-        </div>
-        <div class="status" id="serverStatus">檢查中…</div>
-      </div>
-    </div>
-
-    <div class="group">
-      <h3>聲音</h3>
-      <label class="item switch"><span>「聽我說」「兩個人對話」翻好馬上唸出來</span><input type="checkbox" id="tts"></label>
-      <label class="item switch"><span>「聽我說」雙向：一個人說完，自動換另一個人說</span><input type="checkbox" id="autoTurn"></label>
-      <label class="item switch"><span>「拍給 AI 看」每次都用語音回答</span><input type="checkbox" id="voiceReply"></label>
-    </div>
-
-    <div class="group">
-      <h3>翻譯</h3>
-      <div class="item">
-        <div style="font-weight:700;margin-bottom:6px">翻譯風格</div>
-        <select id="style">
-          <option value="natural">自然（忠實原意）</option>
-          <option value="casual">輕鬆口語（像跟朋友聊天）</option>
-          <option value="social">社群道地（網路用語 / 流行語）</option>
-          <option value="formal">正式禮貌</option>
-          <option value="business">商務專業</option>
+        <select id="uiLang">
+          <option value="both">中文 + English（雙語 Bilingual）</option>
+          <option value="zh">只顯示中文</option>
+          <option value="en">English only</option>
         </select>
       </div>
-      <label class="item switch"><span>顯示原文</span><input type="checkbox" id="showSrc"></label>
+    </div>
+
+    <div class="group">
+      <h3 data-h="gConn"></h3>
       <div class="item">
-        <div style="font-weight:700">專有名詞（選填）</div>
-        <div style="color:var(--muted);font-size:.85rem;margin-bottom:6px">一行一條，例如：招標 = tender</div>
+        <div style="font-weight:700" data-h="inviteCode"></div>
+        <div class="invite-row">
+          <input type="text" id="inviteSet" data-ph="inviteEg" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button class="send" data-save-invite="inviteSet" data-h="ok"></button>
+        </div>
+        <div class="status" id="serverStatus"></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3 data-h="gVoice"></h3>
+      <label class="item switch"><span data-h="sAutoSpeak"></span><input type="checkbox" id="tts"></label>
+      <label class="item switch"><span data-h="sAutoTurn"></span><input type="checkbox" id="autoTurn"></label>
+      <label class="item switch"><span data-h="sVoiceReply"></span><input type="checkbox" id="voiceReply"></label>
+    </div>
+
+    <div class="group">
+      <h3 data-h="gTrans"></h3>
+      <div class="item">
+        <div style="font-weight:700;margin-bottom:6px" data-h="style"></div>
+        <select id="style">
+          <option value="natural" data-t="stNatural"></option>
+          <option value="casual" data-t="stCasual"></option>
+          <option value="social" data-t="stSocial"></option>
+          <option value="formal" data-t="stFormal"></option>
+          <option value="business" data-t="stBusiness"></option>
+        </select>
+      </div>
+      <label class="item switch"><span data-h="sShowSrc"></span><input type="checkbox" id="showSrc"></label>
+      <div class="item">
+        <div style="font-weight:700" data-h="glossary"></div>
+        <div style="color:var(--muted);font-size:.85rem;margin-bottom:6px" data-h="glossaryHint"></div>
         <textarea id="glossary" rows="3"></textarea>
       </div>
     </div>
 
     <div class="group">
-      <h3>紀錄</h3>
+      <h3 data-h="gRecords"></h3>
       <div class="item grid2">
-        <button class="soft" id="exportTxt">⬇ 下載文字檔</button>
-        <button class="soft" id="exportSrt">⬇ 下載字幕檔</button>
+        <button class="soft" id="exportTxt" data-h="dlTxt"></button>
+        <button class="soft" id="exportSrt" data-h="dlSrt"></button>
       </div>
-      <div class="item"><button class="soft danger" id="clearBtn" style="width:100%">🗑 清除所有紀錄</button></div>
-      <div class="item" id="installItem" hidden><button class="soft" id="installBtn" style="width:100%">📲 安裝到手機主畫面</button></div>
+      <div class="item"><button class="soft danger" id="clearBtn" style="width:100%" data-h="clearAll"></button></div>
+      <div class="item" id="installItem" hidden><button class="soft" id="installBtn" style="width:100%" data-h="install"></button></div>
     </div>
-    <p class="hint">語音辨識使用手機瀏覽器內建功能（iPhone 請用 Safari）。翻譯由 Claude AI 提供。</p>
+    <p class="hint" data-h="footer"></p>
   </div>
 </div>
 
 <div class="toast" id="toast" role="status"></div>
 <div id="caption">
-  <div class="c-bar"><button id="capMinus">A−</button><button id="capPlus">A+</button><span class="spacer"></span><button id="capClose">✕ 關閉</button></div>
+  <div class="c-bar"><button id="capMinus">A−</button><button id="capPlus">A+</button><span class="spacer"></span><button id="capClose" data-h="close"></button></div>
   <div class="c-src" id="capSrc"></div>
-  <div class="c-tgt" id="capTgt">等待說話…</div>
+  <div class="c-tgt" id="capTgt"></div>
 </div>
 
 <script>
+// ===================== bilingual interface =====================
+// Every label exists in Chinese and English. "both" shows Chinese with English underneath
+// (or "中文 / English" on one line for messages); the setting can also show just one language.
+let uiLang = (() => { try { return JSON.parse(localStorage.getItem("ll_uiLang")) || "both"; } catch { return "both"; } })();
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const T = (zh, en) => uiLang === "zh" ? zh : uiLang === "en" ? en : `${zh} / ${en}`;           // one line, plain text
+const H = (zh, en) => uiLang === "zh" ? esc(zh) : uiLang === "en" ? esc(en) : `${esc(zh)}<span class="en">${esc(en)}</span>`; // two lines
+const srvMsg = (m) => { const p = String(m).split(" / "); return p.length === 2 ? T(p[0], p[1]) : m; }; // server messages are "中文 / English"
+
+const I18N = {
+  back: ["‹ 首頁", "Home"], settings: ["⚙️ 設定", "Settings"], ok: ["確認", "OK"], done: ["完成", "Done"], close: ["✕ 關閉", "Close"],
+  inviteTitle: ["🔑 請輸入邀請碼", "Enter your invite code"],
+  inviteWhy: ["邀請碼由送你這個網址的人提供，輸入一次就會記住。", "You get it from the person who sent you this link. Enter it once; it's remembered."],
+  inviteEg: ["例如 TUMUOI-1954", "e.g. TUMUOI-1954"], inviteCode: ["邀請碼", "Invite code"],
+  hello: ["您好！今天要做什麼？", "Hello! What would you like to do?"],
+  helloSub: ["點一下下面的大按鈕就可以開始。", "Tap a big button below to start."],
+  tSpeech: ["聽我說，幫我翻譯", "Listen & translate"],
+  tSpeechD: ["你說中文就唸英文，對方說英文就唸中文，自動輪流（依你選的語言）", "Speak, hear the translation, and it switches to the other person automatically"],
+  tConvo: ["兩個人對話", "Two-person conversation"],
+  tConvoD: ["你說一句、對方說一句，各按自己的按鈕", "Each person taps their own button to talk"],
+  tAsk: ["問 AI（會上網查）", "Ask AI (searches the web)"],
+  tAskD: ["天氣、新聞、價格、營業時間…開口問就好", "Weather, news, prices, opening hours… just ask"],
+  tVision: ["拍給 AI 看", "Show it to AI"],
+  tVisionD: ["用鏡頭或照片問 AI：藥盒、菜單、路牌、說明書", "Ask about what the camera sees: medicine, menus, signs"],
+  tText: ["打字翻譯", "Type to translate"], tTextD: ["輸入任何語言的文字，自動翻譯", "Type in any language, it's translated"],
+  tCompose: ["寫訊息給朋友", "Write a message"], tComposeD: ["用自己的話寫，翻好自動複製，直接貼到聊天", "Write it your way; the translation is copied for you to paste"],
+  caption: ["🖥 全螢幕大字幕", "Big captions"],
+  camOff: ["按下面「開口問」或「看一下」就會打開鏡頭", "Tap “Ask” or “Look” below to open the camera"],
+  flip: ["🔄 前/後", "Flip"],
+  convoHint: ["輪到誰說話，就按誰的按鈕；再按一下停止", "Whoever is speaking taps their button; tap again to stop"],
+  look: ["👀 看一下", "Look"], upload: ["🖼 上傳照片", "Photo"], typeAsk: ["⌨️ 打字問", "Type"],
+  gUi: ["界面語言", "Interface language"], gConn: ["連線", "Connection"], gVoice: ["聲音", "Voice"], gTrans: ["翻譯", "Translation"], gRecords: ["紀錄", "History"],
+  sAutoSpeak: ["「聽我說」「兩個人對話」翻好馬上唸出來", "Read translations aloud right away (Listen / Conversation)"],
+  sAutoTurn: ["「聽我說」雙向：一個人說完，自動換另一個人說", "Listen mode is two-way: switch speakers after each sentence"],
+  sVoiceReply: ["AI 的回答（問 AI、拍給 AI 看）每次都唸出來", "Read AI answers aloud (Ask AI, Show it to AI)"],
+  style: ["翻譯風格", "Translation style"],
+  stNatural: ["自然（忠實原意）", "Natural"], stCasual: ["輕鬆口語", "Casual"], stSocial: ["社群道地（網路用語）", "Social media slang"],
+  stFormal: ["正式禮貌", "Formal"], stBusiness: ["商務專業", "Business"],
+  sShowSrc: ["顯示原文", "Show the original text"],
+  glossary: ["專有名詞（選填）", "Glossary (optional)"], glossaryHint: ["一行一條，例如：招標 = tender", "One per line, e.g. 招標 = tender"],
+  dlTxt: ["⬇ 下載文字檔", "Download text"], dlSrt: ["⬇ 下載字幕檔", "Download subtitles"],
+  clearAll: ["🗑 清除所有紀錄", "Clear all history"], install: ["📲 安裝到手機主畫面", "Add to home screen"],
+  footer: ["語音辨識使用手機瀏覽器內建功能（iPhone 請用 Safari）。翻譯與回答由 Claude AI 提供。", "Speech recognition uses your browser (Safari on iPhone). Translations and answers by Claude AI."],
+};
+function applyI18n() {
+  document.documentElement.lang = uiLang === "en" ? "en" : "zh-Hant";
+  document.querySelectorAll("[data-h]").forEach(el => { const k = I18N[el.dataset.h]; if (k) el.innerHTML = H(...k); });
+  document.querySelectorAll("[data-t]").forEach(el => { const k = I18N[el.dataset.t]; if (k) el.textContent = T(...k); });
+  document.querySelectorAll("[data-ph]").forEach(el => { const k = I18N[el.dataset.ph]; if (k) el.placeholder = T(...k); });
+  $("still").alt = T("上傳的照片", "Uploaded photo");
+}
+
 // ===================== data & helpers =====================
 const LANGS = [
   ["zh-TW","繁體中文（台灣）","Traditional Chinese (Taiwan)"],
@@ -405,25 +485,29 @@ const store = {
   set(k, v) { try { localStorage.setItem("ll_" + k, JSON.stringify(v)); } catch {} },
 };
 const langName = (code) => (LANGS.find(l => l[0] === code) || [code, code, code])[2];
-const langLabel = (code) => code === "auto" ? "自動偵測" : (LANGS.find(l => l[0] === code) || [code, code])[1];
-function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("on"), 2400); }
+const langLabel = (code) => code === "auto" ? T("自動偵測", "Auto-detect") : (LANGS.find(l => l[0] === code) || [code, code])[1];
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("on"), 2600); }
 function showWarn(msg) { $("warn").textContent = msg; show("warn", !!msg); }
 $("warn").onclick = () => show("warn", false);
 
-// ===================== the five functions =====================
+// ===================== the six functions =====================
 const MODES = {
-  speech:  { title: "🎙 聽我說", empty: ["按下面的綠色大按鈕，對著手機說話", "說完一句會自動翻譯並唸出來，然後換另一個人說"] },
-  convo:   { title: "💬 兩個人對話", empty: ["輪到誰說話，就按下面誰的按鈕", "藍色是你，橘色是對方；翻譯會自動對調"] },
-  vision:  { title: "📹 拍給 AI 看", empty: ["把鏡頭對準要問的東西，按「開口問」", "也可以按「看一下」讓 AI 說明畫面，或「上傳照片」"] },
-  text:    { title: "⌨️ 打字翻譯", empty: ["在下面輸入文字，按「翻譯」", "任何語言都可以，會自動偵測"] },
-  compose: { title: "✍️ 寫訊息", empty: ["用自己的語言寫下想說的話，按「翻譯」", "翻好會自動複製，直接到聊天軟體貼上就好"] },
+  speech:  { title: ["🎙 聽我說", "Listen"], empty: [["按下面的綠色大按鈕，對著手機說話", "Tap the big green button and speak"], ["說完一句會自動翻譯並唸出來，然後換另一個人說", "Each sentence is translated, read aloud, then it's the other person's turn"]] },
+  convo:   { title: ["💬 兩個人對話", "Conversation"], empty: [["輪到誰說話，就按下面誰的按鈕", "Whoever speaks taps their button below"], ["藍色是你，橘色是對方；翻譯會自動對調", "Blue is you, orange is the other person"]] },
+  ask:     { title: ["🔎 問 AI", "Ask AI"], empty: [["按「開口問」或在下面打字問", "Tap “Ask” or type your question below"], ["需要最新消息時，AI 會自己上網查，並附上資料來源", "When it needs current facts, the AI searches the web and lists its sources"]] },
+  vision:  { title: ["📹 拍給 AI 看", "Show it to AI"], empty: [["把鏡頭對準要問的東西，按「開口問」", "Point the camera at it and tap “Ask”"], ["也可以按「看一下」讓 AI 說明畫面，或「上傳照片」", "Or tap “Look” to have it explained, or upload a photo"]] },
+  text:    { title: ["⌨️ 打字翻譯", "Type to translate"], empty: [["在下面輸入文字，按「翻譯」", "Type below and tap “Translate”"], ["任何語言都可以，會自動偵測", "Any language — it's detected automatically"]] },
+  compose: { title: ["✍️ 寫訊息", "Write a message"], empty: [["用自己的語言寫下想說的話，按「翻譯」", "Write in your own language and tap “Translate”"], ["翻好會自動複製，直接到聊天軟體貼上就好", "The translation is copied — just paste it into your chat"]] },
 };
+const AI_KINDS = new Set(["ask", "vision"]);
 let mode = "home";
 
 // ===================== settings & language pickers =====================
 for (const sel of [$("srcLang"), $("tgtLang")]) for (const [code, label] of LANGS) sel.add(new Option(label, code));
 $("srcLang").value = store.get("src", "zh-TW");
 $("tgtLang").value = store.get("tgt", "en-US");
+$("uiLang").value = uiLang;
+$("uiLang").onchange = () => { uiLang = $("uiLang").value; store.set("uiLang", uiLang); refreshTexts(); };
 $("tts").checked = store.get("autoSpeak", true);
 $("voiceReply").checked = store.get("voiceReply", true);
 $("autoTurn").checked = store.get("autoTurn", true);
@@ -446,6 +530,14 @@ function openSheet() { show("sheet", true); show("sheetBg", true); checkServer()
 function closeSheet() { show("sheet", false); show("sheetBg", false); }
 $("settingsBtn").onclick = openSheet; $("sheetClose").onclick = closeSheet; $("sheetBg").onclick = closeSheet;
 
+// re-render every label after the interface language changes
+function refreshTexts() {
+  applyI18n();
+  if (mode !== "home") setupView(mode); else checkServer();
+  renderListening(); renderFeed(); updateCamButton(); stopAsk(); checkServer();
+  $("capTgt").textContent = $("capTgt").textContent || T("等待說話…", "Waiting for speech…");
+}
+
 // ===================== invite code + server health =====================
 const inviteCode = () => (store.get("invite", "") || "").trim().toUpperCase();
 $("inviteHome").value = $("inviteSet").value = inviteCode();
@@ -461,14 +553,18 @@ function checkServer() {
     const ok = h.credentials && inviteOk;
     $("dot").className = "dot " + (ok ? "ok" : "bad");
     let msg, cls;
-    if (!h.credentials) { msg = "伺服器還沒設定 API 金鑰，暫時不能翻譯。"; cls = "bad"; }
-    else if (!inviteOk) { msg = h.invite_message || "請輸入邀請碼"; cls = "bad"; }
-    else { msg = (h.invite_name ? `✓ ${h.invite_name}，已連線，可以使用` : "✓ 已連線，可以使用") + (h.daily_limit ? `（今天已用 ${h.used_today} / ${h.daily_limit} 次）` : ""); cls = "ok"; }
+    if (!h.credentials) { msg = T("伺服器還沒設定 API 金鑰，暫時不能使用。", "The server has no API key yet, so it can't be used."); cls = "bad"; }
+    else if (!inviteOk) { msg = h.invite_message ? srvMsg(h.invite_message) : T("請輸入邀請碼", "Please enter your invite code"); cls = "bad"; }
+    else {
+      const who = h.invite_name ? `${h.invite_name}，` : "";
+      msg = "✓ " + T(`${who}已連線，可以使用`, `${h.invite_name ? h.invite_name + ", " : ""}connected and ready`)
+        + (h.daily_limit ? T(`（今天已用 ${h.used_today} / ${h.daily_limit} 次）`, ` (${h.used_today} / ${h.daily_limit} used today)`) : "");
+      cls = "ok";
+    }
     for (const id of ["serverStatus", "inviteHomeStatus"]) { $(id).textContent = msg; $(id).className = "status " + cls; }
     show("inviteCard", h.invite_required && !inviteOk);
-  }).catch(() => { $("dot").className = "dot bad"; $("serverStatus").textContent = "連不上伺服器，請檢查網路。"; $("serverStatus").className = "status bad"; });
+  }).catch(() => { $("dot").className = "dot bad"; $("serverStatus").textContent = T("連不上伺服器，請檢查網路。", "Can't reach the server. Check your connection."); $("serverStatus").className = "status bad"; });
 }
-checkServer();
 
 // ===================== navigation (home <-> function), phone back gesture works =====================
 document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { location.hash = b.dataset.go; });
@@ -477,7 +573,8 @@ window.addEventListener("hashchange", route);
 function route() { const m = location.hash.slice(1); enter(MODES[m] ? m : "home"); }
 
 function enter(m) {
-  if (mode === "vision" && m !== "vision") { stopCamera(); stopAsk(); }
+  if (AI_KINDS.has(mode) && m !== mode) stopAsk();
+  if (mode === "vision" && m !== "vision") stopCamera();
   stopListening();
   mode = m;
   const home = m === "home";
@@ -485,26 +582,34 @@ function enter(m) {
   show("backBtn", !home); show("brand", home); show("viewTitle", !home); show("topSpacer", home);
   window.scrollTo(0, 0);
   if (home) { checkServer(); return; }
-  $("viewTitle").textContent = MODES[m].title;
-  const vis = m === "vision", convo = m === "convo";
-  // language bar
+  setupView(m);
+  renderListening(); renderFeed(); fitDock();
+}
+
+// labels and layout of a function screen (also re-run when the interface language changes)
+function setupView(m) {
+  $("viewTitle").innerHTML = H(...MODES[m].title);
+  const vis = m === "vision", ai = AI_KINDS.has(m), convo = m === "convo";
   const pair = convo || (m === "speech" && $("autoTurn").checked);
   $("langbar").classList.toggle("a-b", pair);
-  show("tgtBox", !vis); show("swap", !vis);
-  $("srcLabel").textContent = pair ? "藍色（你）說" : vis ? "AI 用這個語言回答" : m === "text" ? "我的語言" : "我說的語言";
-  $("tgtLabel").textContent = pair ? "橘色（對方）說" : "翻譯成";
+  show("tgtBox", !ai); show("swap", !ai);
+  $("srcLabel").textContent = pair ? T("藍色（你）說", "Blue (you) speak")
+    : ai ? T("AI 用這個語言回答", "AI answers in") : m === "text" ? T("我的語言", "My language") : T("我說的語言", "I speak");
+  $("tgtLabel").textContent = pair ? T("橘色（對方）說", "Orange (other person) speaks") : T("翻譯成", "Translate into");
   show("turns", m === "speech" && $("autoTurn").checked);
   show("captionRow", m === "speech" || convo);
   show("stage", vis);
-  $("feedTitle").textContent = vis ? "📝 AI 回答紀錄（最新的在最上面）" : "📝 翻譯紀錄（最新的在最上面）";
+  $("feedTitle").textContent = ai ? "📝 " + T("AI 回答紀錄（最新的在最上面）", "AI answers (newest first)") : "📝 " + T("翻譯紀錄（最新的在最上面）", "Translations (newest first)");
   // dock: one clear action per function
-  show("dSpeech", m === "speech"); show("dConvo", convo); show("dVision", vis);
-  const typing = m === "text" || m === "compose";
+  show("dSpeech", m === "speech"); show("dConvo", convo); show("dAsk", ai); show("visionRow", vis);
+  const typing = m === "text" || m === "compose" || m === "ask";
   show("dTyping", typing);
-  $("dTyping").style.marginTop = typing ? "0" : "10px";
-  $("textIn").placeholder = m === "compose" ? "寫下想傳給朋友的話…" : vis ? "打字問 AI（會連同畫面一起送出）" : "輸入要翻譯的文字…";
-  $("sendText").textContent = vis ? "問" : "翻譯";
-  updateTalkLabels(); renderListening(); renderFeed(); fitDock();
+  $("dTyping").style.marginTop = (m === "ask" ? "10px" : typing ? "0" : "10px");
+  $("textIn").placeholder = m === "compose" ? T("寫下想傳給朋友的話…", "Write what you want to send…")
+    : vis ? T("打字問 AI（會連同畫面一起送出）", "Type a question (sent with the picture)")
+    : m === "ask" ? T("打字問任何問題…", "Type any question…") : T("輸入要翻譯的文字…", "Type text to translate…");
+  $("sendText").innerHTML = ai ? H("問", "Ask") : H("翻譯", "Translate");
+  updateTalkLabels(); stopAsk();
 }
 
 // keep the page content clear of the fixed bottom dock
@@ -515,7 +620,7 @@ new ResizeObserver(fitDock).observe($("dock"));
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null, listening = false, activeSpeaker = null;
 function startListening(speaker) {
-  if (!SR) { showWarn("這個瀏覽器不能語音辨識。iPhone 請用 Safari，電腦請用 Chrome；或改用「打字翻譯」。"); return; }
+  if (!SR) { showWarn(T("這個瀏覽器不能語音辨識。iPhone 請用 Safari，電腦請用 Chrome；或改用「打字翻譯」。", "This browser can't recognise speech. Use Safari on iPhone or Chrome on a computer, or try “Type to translate”.")); return; }
   unlockTts();
   activeSpeaker = speaker;
   rec = new SR();
@@ -533,7 +638,7 @@ function startListening(speaker) {
     setInterim(interim);
     if (interim && $("caption").classList.contains("on")) $("capSrc").textContent = interim;
   };
-  rec.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") { showWarn("麥克風被擋住了：請在瀏覽器允許使用麥克風。"); stopListening(); } };
+  rec.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") { showWarn(T("麥克風被擋住了：請在瀏覽器允許使用麥克風。", "The microphone is blocked: allow it in your browser.")); stopListening(); } };
   rec.onend = () => { if (listening && rec && !micPausedForTts) { try { rec.start(); } catch {} } };
   listening = true;
   try { rec.start(); } catch {}
@@ -556,41 +661,42 @@ function stopListening() {
   activeSpeaker = null; setInterim(""); renderListening();
 }
 function restartIfListening() { if (listening) { const s = activeSpeaker; stopListening(); startListening(s); } }
-function setInterim(t) { $("interim").textContent = t; show("interim", !!t); }
+function setInterim(t) { $("interim").innerHTML = t ? `<b>${esc(T("正在聽：", "Hearing:"))}</b> ${esc(t)}` : ""; show("interim", !!t); }
+const who = (sp) => sp === "A" ? T("你", "You") : T("對方", "Other person");
 function renderListening() {
   const on = listening && mode === "speech";
   $("micBtn").className = "big" + (on ? " rec" : "");
-  $("micBtn").textContent = on ? "■ 停止" : "🎙 開始聽";
-  const who = (sp) => sp === "A" ? "你" : "對方";
+  $("micBtn").innerHTML = on ? H("■ 停止", "Stop") : H("🎙 開始聽", "Start listening");
   if (twoWay()) {
     const cur = activeSpeaker || "A";
-    $("micHint").textContent = !on ? "按一下開始。說完一句會自動翻譯、唸出來，再換另一個人說"
-      : micPausedForTts ? `🔊 正在唸翻譯…唸完換「${who(cur)}」說 ${langLabel(langOf(cur))}`
-      : `正在聽「${who(cur)}」說 ${langLabel(langOf(cur))}…（換人說話可以點上面）`;
+    $("micHint").textContent = !on ? T("按一下開始。說完一句會自動翻譯、唸出來，再換另一個人說", "Tap to start. Each sentence is translated and read aloud, then it switches speakers")
+      : micPausedForTts ? T(`🔊 正在唸翻譯…唸完換「${who(cur)}」說 ${langLabel(langOf(cur))}`, `🔊 Reading the translation… then ${who(cur)} speaks ${langLabel(langOf(cur))}`)
+      : T(`正在聽「${who(cur)}」說 ${langLabel(langOf(cur))}…（換人說話可以點上面）`, `Listening to ${who(cur)} (${langLabel(langOf(cur))})… tap above to switch`);
     for (const sp of ["A", "B"]) {
       $("turn" + sp).classList.toggle("on", on ? cur === sp : sp === "A");
-      $("turn" + sp).innerHTML = `${on && cur === sp ? "● 現在" : "🗣"} ${who(sp)}說<small>${langLabel(langOf(sp))}</small>`;
+      const now = on && cur === sp;
+      $("turn" + sp).innerHTML = (now ? "● " : "🗣 ") + H(sp === "A" ? (now ? "現在 你說" : "你說") : (now ? "現在 對方說" : "對方說"), sp === "A" ? "You" : "Other") + `<small>${esc(langLabel(langOf(sp)))}</small>`;
     }
   } else {
-    $("micHint").textContent = !on ? "按一下開始，說完一句就會自動翻譯"
-      : micPausedForTts ? "🔊 正在唸翻譯…唸完會繼續聽" : "正在聽…說完一句就會自動翻譯";
+    $("micHint").textContent = !on ? T("按一下開始，說完一句就會自動翻譯", "Tap to start; each sentence is translated")
+      : micPausedForTts ? T("🔊 正在唸翻譯…唸完會繼續聽", "🔊 Reading the translation… then listening again") : T("正在聽…說完一句就會自動翻譯", "Listening… each sentence is translated");
   }
   $("talkA").classList.toggle("rec", activeSpeaker === "A");
   $("talkB").classList.toggle("rec", activeSpeaker === "B");
   updateTalkLabels();
 }
 function updateTalkLabels() {
-  $("talkA").innerHTML = (activeSpeaker === "A" ? "■ 停止" : "🎙 你說") + `<small>${langLabel($("srcLang").value)}</small>`;
-  $("talkB").innerHTML = (activeSpeaker === "B" ? "■ 停止" : "🎙 對方說") + `<small>${langLabel($("tgtLang").value)}</small>`;
+  $("talkA").innerHTML = (activeSpeaker === "A" ? H("■ 停止", "Stop") : H("🎙 你說", "You speak")) + `<small>${esc(langLabel($("srcLang").value))}</small>`;
+  $("talkB").innerHTML = (activeSpeaker === "B" ? H("■ 停止", "Stop") : H("🎙 對方說", "They speak")) + `<small>${esc(langLabel($("tgtLang").value))}</small>`;
 }
 $("micBtn").onclick = () => listening ? stopListening() : startListening("A");
 for (const s of ["A", "B"]) $("talk" + s).onclick = () => { const was = activeSpeaker; stopListening(); if (was !== s) startListening(s); };
 
-// ===================== translation cards =====================
+// ===================== cards (translations and AI answers) =====================
 const segments = store.get("segments", []);
-for (const s of segments) if (s.state === "pending") { s.state = "error"; s.err = "（中斷了，按「重試」）"; }
+for (const s of segments) if (s.state === "pending") { s.state = "error"; s.err = T("（中斷了，按「重試」）", "(Interrupted — tap Retry)"); }
 const ttsQueue = [];
-const visible = (seg) => mode === "vision" ? seg.kind === "vision" : seg.kind !== "vision";
+const visible = (seg) => AI_KINDS.has(mode) ? seg.kind === mode : !AI_KINDS.has(seg.kind);
 
 function addSegment(text, speaker) {
   const from = speaker === "B" ? $("tgtLang").value : (mode === "text" ? "auto" : $("srcLang").value);
@@ -600,13 +706,13 @@ function addSegment(text, speaker) {
   segments.push(seg); renderCard(seg); translate(seg);
 }
 
-async function streamSSE(url, payload, onDelta) {
+async function streamSSE(url, payload, onDelta, onEvent) {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "X-Invite-Code": inviteCode() }, body: JSON.stringify(payload) });
   if (!res.ok) {
     let msg = "HTTP " + res.status;
     try { msg = (await res.json()).message || msg; } catch {}
     if (res.status === 401 || res.status === 403 || res.status === 429) checkServer();
-    throw new Error(msg);
+    throw new Error(srvMsg(msg));
   }
   const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
   for (;;) {
@@ -618,36 +724,37 @@ async function streamSSE(url, payload, onDelta) {
       const ev = (block.match(/^event: (.*)$/m) || [])[1];
       const data = JSON.parse((block.match(/^data: (.*)$/m) || [, "{}"])[1]);
       if (ev === "delta") onDelta(data.text);
-      else if (ev === "error") throw new Error(data.message);
+      else if (ev === "error") throw new Error(srvMsg(data.message));
+      else if (onEvent) onEvent(ev, data);
     }
   }
 }
 
 async function translate(seg) {
-  if (seg.kind === "vision") return runVision(seg);
-  const context = segments.filter(s => s.state === "done" && s !== seg && s.kind !== "vision").slice(-6).map(s => ({ source: s.src, translation: s.tgt }));
+  if (AI_KINDS.has(seg.kind)) return runAI(seg);
+  const context = segments.filter(s => s.state === "done" && s !== seg && !AI_KINDS.has(s.kind)).slice(-6).map(s => ({ source: s.src, translation: s.tgt }));
   seg.tgt = ""; seg.state = "pending"; updateCard(seg);
   try {
     await streamSSE("/api/translate", { text: seg.src, source_lang: seg.from === "auto" ? "auto" : langName(seg.from),
       target_lang: langName(seg.to), context, glossary: $("glossary").value, style: $("style").value },
       (t) => { seg.tgt += t; updateCard(seg); });
     seg.state = "done";
-  } catch (e) { seg.state = "error"; seg.err = "翻譯失敗：" + e.message; }
+  } catch (e) { seg.state = "error"; seg.err = T("翻譯失敗：", "Translation failed: ") + e.message; }
   updateCard(seg); persist();
   // 聽我說 / 兩個人對話: read the translation aloud as soon as it's ready
   if (seg.state === "done" && seg.tgt && !seg.compose && (mode === "speech" || mode === "convo") && $("tts").checked) speak(seg.tgt, seg.to);
   if (seg.state === "done" && seg.compose && navigator.clipboard) {
-    navigator.clipboard.writeText(seg.tgt).then(() => toast("✓ 已複製，到聊天軟體貼上就好"), () => {});
+    navigator.clipboard.writeText(seg.tgt).then(() => toast(T("✓ 已複製，到聊天軟體貼上就好", "✓ Copied — paste it into your chat")), () => {});
   }
 }
-function persist() { store.set("segments", segments.slice(-300).map(({ err, thumb, ...s }) => s)); }
+function persist() { store.set("segments", segments.slice(-300).map(({ err, thumb, status, ...s }) => s)); }
 
 function renderFeed() {
   const feed = $("feed"); feed.innerHTML = "";
   const mine = segments.filter(visible);
   if (!mine.length && MODES[mode]) {
     const [a, b] = MODES[mode].empty;
-    feed.innerHTML = `<div class="empty" id="empty"><b>${a}</b>${b}</div>`;
+    feed.innerHTML = `<div class="empty" id="empty"><b>${H(...a)}</b>${H(...b)}</div>`;
   }
   for (const s of mine) renderCard(s);
   show("camAnswer", false);
@@ -659,26 +766,29 @@ function renderCard(seg) {
   const el = document.createElement("div");
   el.className = "card" + (seg.speaker ? " " + seg.speaker : ""); el.id = "c" + seg.id;
   el.innerHTML = `<div class="meta"><span class="who"></span><span class="time"></span></div>
-    <div class="src"></div><div class="tgt"></div><div class="explain" hidden></div><div class="acts"></div>`;
-  const who = seg.kind === "vision" ? "📹 AI 回答" : seg.speaker === "A" ? "你說" : seg.speaker === "B" ? "對方說" : "";
-  el.querySelector(".who").textContent = who ? `${who} · ` + (seg.kind === "vision" ? "" : `${langLabel(seg.from)} → ${langLabel(seg.to)}`) : `${langLabel(seg.from)} → ${langLabel(seg.to)}`;
+    <div class="src"></div><div class="status-line" hidden></div><div class="tgt"></div><div class="srcs" hidden></div><div class="explain" hidden></div><div class="acts"></div>`;
+  const ai = AI_KINDS.has(seg.kind);
+  const tag = ai ? (seg.kind === "vision" ? "📹 " : "🔎 ") + T("AI 回答", "AI answer")
+    : seg.speaker === "A" ? T("你說", "You") : seg.speaker === "B" ? T("對方說", "Other person") : "";
+  const dir = `${langLabel(seg.from)} → ${langLabel(seg.to)}`;
+  el.querySelector(".who").textContent = ai ? tag : tag ? `${tag} · ${dir}` : dir;
   el.querySelector(".time").textContent = new Date(seg.t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  el.querySelector(".src").textContent = seg.kind === "vision" ? "問：" + seg.src : seg.src;
-  show(el.querySelector(".src"), seg.kind === "vision" || $("showSrc").checked);
-  if (seg.thumb) { const im = document.createElement("img"); im.className = "thumb"; im.src = seg.thumb; im.alt = "當時的畫面"; el.querySelector(".src").before(im); }
+  el.querySelector(".src").textContent = ai ? T("問：", "Q: ") + seg.src : seg.src;
+  show(el.querySelector(".src"), ai || $("showSrc").checked);
+  if (seg.thumb) { const im = document.createElement("img"); im.className = "thumb"; im.src = seg.thumb; im.alt = T("當時的畫面", "The picture"); el.querySelector(".src").before(im); }
   $("feed").prepend(el); // newest on top
   updateCard(seg);
 }
 
 function cardActions(seg, el) {
   const acts = el.querySelector(".acts"); acts.innerHTML = "";
-  const add = (label, fn) => { const b = document.createElement("button"); b.textContent = label; b.onclick = fn; acts.append(b); };
+  const add = (zh, en, fn) => { const b = document.createElement("button"); b.textContent = T(zh, en); b.onclick = fn; acts.append(b); };
   if (seg.state === "pending") return;
-  if (seg.state === "error") { add("↻ 重試", () => translate(seg)); return; }
-  add("🔊 唸一次", () => { unlockTts(); speak(seg.tgt, seg.to, true); });
-  add("⧉ 複製", () => navigator.clipboard?.writeText(seg.tgt).then(() => toast("✓ 已複製")));
-  add("📤 分享", () => navigator.share ? navigator.share({ text: seg.tgt }).catch(() => {}) : navigator.clipboard?.writeText(seg.tgt).then(() => toast("✓ 已複製")));
-  if (seg.kind !== "vision") add("📖 解釋", () => explain(seg, el.querySelector(".explain")));
+  if (seg.state === "error") { add("↻ 重試", "Retry", () => translate(seg)); return; }
+  add("🔊 唸一次", "Read aloud", () => { unlockTts(); speak(seg.tgt, seg.to, true); });
+  add("⧉ 複製", "Copy", () => navigator.clipboard?.writeText(seg.tgt).then(() => toast(T("✓ 已複製", "✓ Copied"))));
+  add("📤 分享", "Share", () => navigator.share ? navigator.share({ text: seg.tgt }).catch(() => {}) : navigator.clipboard?.writeText(seg.tgt).then(() => toast(T("✓ 已複製", "✓ Copied"))));
+  if (!AI_KINDS.has(seg.kind)) add("📖 解釋", "Explain", () => explain(seg, el.querySelector(".explain")));
 }
 
 async function explain(seg, box) {
@@ -688,7 +798,7 @@ async function explain(seg, box) {
     await streamSSE("/api/explain", { text: seg.src, translation: seg.tgt, target_lang: langName(seg.to),
       explain_lang: langName($("srcLang").value) }, (t) => { box.textContent += t; });
     box.dataset.done = "1";
-  } catch (e) { box.textContent = "解釋失敗：" + e.message; }
+  } catch (e) { box.textContent = T("解釋失敗：", "Couldn't explain: ") + e.message; }
   box.classList.remove("caret");
 }
 
@@ -698,13 +808,19 @@ function updateCard(seg) {
   if (el) {
     const tgt = el.querySelector(".tgt");
     tgt.className = "tgt" + (seg.state === "pending" ? " caret" : "") + (seg.state === "error" ? " err" : "");
-    tgt.textContent = seg.state === "error" ? (seg.err || "出錯了") : seg.tgt;
+    tgt.textContent = seg.state === "error" ? (seg.err || T("出錯了", "Something went wrong")) : seg.tgt;
+    const st = el.querySelector(".status-line"); st.textContent = seg.status || ""; show(st, !!seg.status && seg.state === "pending");
+    const srcs = el.querySelector(".srcs");
+    if (seg.sources?.length) {
+      srcs.innerHTML = `<b>🔗 ${esc(T("資料來源", "Sources"))}</b>` + seg.sources.map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title || s.url)}</a>`).join("");
+      show(srcs, true);
+    }
     if (el.dataset.state !== seg.state) { el.dataset.state = seg.state; cardActions(seg, el); }
   }
   if (newest && seg.kind === "vision" && mode === "vision") { // latest answer over the camera view
     show("camAnswer", true);
-    $("camQ").textContent = "問：" + seg.src;
-    $("camA").textContent = seg.state === "error" ? (seg.err || "出錯了") : (seg.tgt || "…");
+    $("camQ").textContent = T("問：", "Q: ") + seg.src;
+    $("camA").textContent = seg.state === "error" ? (seg.err || "") : (seg.tgt || seg.status || "…");
   }
   if (newest && $("caption").classList.contains("on")) { $("capSrc").textContent = seg.src; $("capTgt").textContent = seg.tgt || "…"; }
 }
@@ -749,39 +865,40 @@ function nextTts() {
   speechSynthesis.speak(u);
 }
 
-// ===================== typing (打字翻譯 / 寫訊息 / 打字問 AI) =====================
+// ===================== typing =====================
 function sendText() {
   const t = $("textIn").value.trim(); if (!t) return; $("textIn").value = ""; $("textIn").blur();
   unlockTts();
-  if (mode === "vision") askVision(t); else addSegment(t, "A");
+  if (AI_KINDS.has(mode)) askAI(t); else addSegment(t, "A");
 }
 $("sendText").onclick = sendText;
 $("textIn").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendText(); } };
 $("textIn").oninput = () => { const t = $("textIn"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 140) + "px"; };
 $("typeBtn").onclick = () => { const on = $("dTyping").hidden; show("dTyping", on); fitDock(); if (on) $("textIn").focus(); };
 
-// ===================== 拍給 AI 看 (camera / photo + question -> Claude vision) =====================
+// ===================== camera / photo (拍給 AI 看) =====================
 const frames = {};
 let camStream = null, facing = store.get("facing", "environment"), stillImage = null;
+function updateCamButton() { $("camBtn").innerHTML = camStream ? H("⏹ 關鏡頭", "Camera off") : H("📷 開鏡頭", "Camera on"); }
 async function startCamera() {
-  if (!navigator.mediaDevices?.getUserMedia) { showWarn("這個瀏覽器不能開鏡頭。iPhone 請用 Safari，網址要是 https:// 開頭。"); return false; }
+  if (!navigator.mediaDevices?.getUserMedia) { showWarn(T("這個瀏覽器不能開鏡頭。iPhone 請用 Safari，網址要是 https:// 開頭。", "This browser can't open the camera. Use Safari on iPhone, with an https:// address.")); return false; }
   stopCamera();
   try {
     camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facing }, width: { ideal: 1280 } }, audio: false });
   } catch (e) {
-    showWarn(e.name === "NotAllowedError" ? "相機被擋住了：請在瀏覽器允許使用相機。" : "鏡頭打不開：" + e.message);
+    showWarn(e.name === "NotAllowedError" ? T("相機被擋住了：請在瀏覽器允許使用相機。", "The camera is blocked: allow it in your browser.") : T("鏡頭打不開：", "Can't open the camera: ") + e.message);
     return false;
   }
   clearStill();
   const v = $("cam"); show(v, true); v.srcObject = camStream; v.style.transform = facing === "user" ? "scaleX(-1)" : "";
   await v.play().catch(() => {});
-  show("camOff", false); $("camBtn").textContent = "⏹ 關鏡頭";
+  show("camOff", false); updateCamButton();
   return true;
 }
 function stopCamera() {
   if (camStream) camStream.getTracks().forEach(t => t.stop());
   camStream = null; $("cam").srcObject = null;
-  show("camOff", !stillImage); $("camBtn").textContent = "📷 開鏡頭";
+  show("camOff", !stillImage); updateCamButton();
 }
 function clearStill() { stillImage = null; show("still", false); $("still").removeAttribute("src"); }
 $("camBtn").onclick = () => camStream ? stopCamera() : startCamera();
@@ -800,7 +917,6 @@ function grabFrame() { // the uploaded photo, or the current camera frame
   const v = $("cam"); if (!camStream || !v.videoWidth) return null;
   return { full: scaleImage(v, 1024, 0.72), thumb: scaleImage(v, 192, 0.6) };
 }
-
 $("uploadBtn").onclick = () => { unlockTts(); $("imgFile").click(); };
 $("imgFile").onchange = async () => {
   const file = $("imgFile").files[0]; $("imgFile").value = "";
@@ -809,29 +925,37 @@ $("imgFile").onchange = async () => {
   try {
     const img = new Image(); img.src = url; await img.decode();
     stillImage = { full: scaleImage(img, 1568, 0.82), thumb: scaleImage(img, 192, 0.6) }; // menus/documents need detail
-  } catch { showWarn("這張照片打不開，請換一張。"); return; }
+  } catch { showWarn(T("這張照片打不開，請換一張。", "That photo can't be opened, please try another.")); return; }
   finally { URL.revokeObjectURL(url); }
   stopCamera(); show("cam", false);
   $("still").src = stillImage.full; show("still", true); show("camOff", false);
   const q = $("textIn").value.trim(); $("textIn").value = "";
-  askVision(q);
+  askAI(q);
 };
 
-async function askVision(question) {
-  if (!camStream && !stillImage && !(await startCamera())) return;
-  if (camStream && !$("cam").videoWidth) await new Promise(r => setTimeout(r, 400));
-  const f = grabFrame(); if (!f) { showWarn("鏡頭還沒準備好，請再按一次。"); return; }
+// ===================== AI answers: 問 AI (web search) and 拍給 AI 看 (camera + web search) =====================
+async function askAI(question) {
+  const vis = mode === "vision";
+  let f = null;
+  if (vis) {
+    if (!camStream && !stillImage && !(await startCamera())) return;
+    if (camStream && !$("cam").videoWidth) await new Promise(r => setTimeout(r, 400));
+    f = grabFrame(); if (!f) { showWarn(T("鏡頭還沒準備好，請再按一次。", "The camera isn't ready yet, please tap again.")); return; }
+  }
+  if (!question && !vis) return;
   const lang = $("srcLang").value;
-  const seg = { id: Date.now() + Math.random(), t: Date.now(), kind: "vision", speaker: null, from: lang, to: lang,
-    src: question || "（請看一下畫面）", q: question, tgt: "", state: "pending", thumb: f.thumb };
-  frames[seg.id] = f.full;
-  segments.push(seg); renderCard(seg); runVision(seg);
+  const seg = { id: Date.now() + Math.random(), t: Date.now(), kind: mode, speaker: null, from: lang, to: lang,
+    src: question || T("（請看一下畫面）", "(Take a look)"), q: question, tgt: "", state: "pending", thumb: f?.thumb };
+  if (f) frames[seg.id] = f.full;
+  segments.push(seg); renderCard(seg); runAI(seg);
 }
-async function runVision(seg) {
+async function runAI(seg) {
+  const vis = seg.kind === "vision";
   const full = frames[seg.id];
-  if (!full) { seg.state = "error"; seg.err = "這張畫面已經不在了，請重新拍一次。"; updateCard(seg); return; }
-  const history = segments.filter(s => s.kind === "vision" && s.state === "done" && s !== seg).slice(-4).map(s => ({ question: s.q || "", answer: s.tgt }));
-  seg.tgt = ""; seg.state = "pending"; updateCard(seg); camState("🤔 AI 正在看…");
+  if (vis && !full) { seg.state = "error"; seg.err = T("這張畫面已經不在了，請重新拍一次。", "That picture is gone — please take it again."); updateCard(seg); return; }
+  const history = segments.filter(s => s.kind === seg.kind && s.state === "done" && s !== seg).slice(-4).map(s => ({ question: s.q || "", answer: s.tgt }));
+  seg.tgt = ""; seg.state = "pending"; seg.sources = []; seg.status = T("🤔 AI 正在想…", "🤔 Thinking…"); updateCard(seg);
+  if (vis) camState(T("🤔 AI 正在看…", "🤔 Looking…"));
   const voice = $("voiceReply").checked;
   if (voice) { window.speechSynthesis?.cancel(); ttsQueue.length = 0; speaking = false; }
   let spoken = 0;
@@ -841,25 +965,35 @@ async function runVision(seg) {
     const m = final ? rest.length : Math.max(...["。", "！", "？", ".", "!", "?", "\n"].map(p => rest.lastIndexOf(p))) + 1;
     if (m > 0 && rest.slice(0, m).trim()) { speak(rest.slice(0, m).trim(), seg.to); spoken += m; }
   };
+  const onEvent = (ev, data) => {
+    if (ev === "status" && data.kind === "search") {
+      seg.status = data.query ? T(`🔎 正在上網查：${data.query}`, `🔎 Searching the web: ${data.query}`) : T("🔎 正在上網查…", "🔎 Searching the web…");
+      if (vis) camState(seg.status);
+      updateCard(seg);
+    } else if (ev === "sources") { seg.sources = data.items || []; updateCard(seg); }
+  };
+  const url = vis ? "/api/vision" : "/api/ask";
+  const payload = vis
+    ? { image: full.split(",")[1], media_type: "image/jpeg", question: seg.q || "", answer_lang: langName(seg.to), history }
+    : { question: seg.q, answer_lang: langName(seg.to), history };
   try {
-    await streamSSE("/api/vision", { image: full.split(",")[1], media_type: "image/jpeg", question: seg.q || "",
-      answer_lang: langName(seg.to), history }, (t) => { seg.tgt += t; updateCard(seg); speakFinished(false); });
+    await streamSSE(url, payload, (t) => { seg.tgt += t; seg.status = ""; updateCard(seg); speakFinished(false); }, onEvent);
     seg.state = "done"; speakFinished(true);
-  } catch (e) { seg.state = "error"; seg.err = "回答失敗：" + e.message; }
-  camState(""); updateCard(seg); persist();
+  } catch (e) { seg.state = "error"; seg.err = T("回答失敗：", "No answer: ") + e.message; }
+  seg.status = ""; if (vis) camState(""); updateCard(seg); persist();
 }
 
 // one spoken question per tap
 let askRec = null;
 function stopAsk() {
   if (askRec) { const r = askRec; askRec = null; try { r.abort(); } catch {} }
-  $("askBtn").className = "big"; $("askBtn").textContent = "🎙 按一下，開口問"; setInterim("");
+  $("askBtn").className = "big"; $("askBtn").innerHTML = H("🎙 按一下，開口問", "Tap and ask"); setInterim("");
 }
 $("askBtn").onclick = async () => {
   unlockTts(); window.speechSynthesis?.cancel();
   if (askRec) { stopAsk(); return; }
-  if (!SR) { showWarn("這個瀏覽器不能語音辨識，請按「打字問」。"); return; }
-  if (!camStream && !stillImage && !(await startCamera())) return;
+  if (!SR) { showWarn(T("這個瀏覽器不能語音辨識，請打字問。", "This browser can't recognise speech — please type your question.")); return; }
+  if (mode === "vision" && !camStream && !stillImage && !(await startCamera())) return;
   const r = new SR(); askRec = r;
   r.lang = $("srcLang").value; r.continuous = false; r.interimResults = true; r.maxAlternatives = 1;
   let finalText = "", latest = "";
@@ -868,12 +1002,12 @@ $("askBtn").onclick = async () => {
     if (ev.results[ev.results.length - 1].isFinal) finalText = latest;
     setInterim(latest);
   };
-  r.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") showWarn("麥克風被擋住了：請在瀏覽器允許使用麥克風。"); };
-  r.onend = () => { const q = (finalText || latest).trim(); const mine = askRec === r; stopAsk(); if (mine && q) askVision(q); };
-  $("askBtn").className = "big rec"; $("askBtn").textContent = "■ 正在聽…說完會自動送出";
+  r.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") showWarn(T("麥克風被擋住了：請在瀏覽器允許使用麥克風。", "The microphone is blocked: allow it in your browser.")); };
+  r.onend = () => { const q = (finalText || latest).trim(); const mine = askRec === r; stopAsk(); if (mine && q) askAI(q); };
+  $("askBtn").className = "big rec"; $("askBtn").innerHTML = H("■ 正在聽…說完會自動送出", "Listening… sends when you stop");
   try { r.start(); } catch { stopAsk(); }
 };
-$("lookBtn").onclick = () => { unlockTts(); window.speechSynthesis?.cancel(); askVision(""); };
+$("lookBtn").onclick = () => { unlockTts(); window.speechSynthesis?.cancel(); askAI(""); };
 
 // ===================== fullscreen captions =====================
 let capSize = store.get("capSize", 6);
@@ -895,17 +1029,18 @@ function download(name, text) {
 }
 const stamp = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
 $("exportTxt").onclick = () => download(`muoitu-${stamp()}.txt`, segments.map(s =>
-  `[${new Date(s.t).toLocaleTimeString()}]${s.speaker ? " " + s.speaker : ""}\n${s.src}\n${s.tgt}\n`).join("\n"));
+  `[${new Date(s.t).toLocaleTimeString()}]${s.speaker ? " " + s.speaker : ""}\n${s.src}\n${s.tgt}\n` +
+  (s.sources?.length ? s.sources.map(x => `- ${x.title}: ${x.url}`).join("\n") + "\n" : "")).join("\n"));
 $("exportSrt").onclick = () => {
   const fmt = (ms) => { ms = Math.max(0, ms); const h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60;
     return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")},${String(ms % 1000).padStart(3,"0")}`; };
-  const subs = segments.filter(s => s.kind !== "vision"); const t0 = subs[0]?.t || 0;
+  const subs = segments.filter(s => !AI_KINDS.has(s.kind)); const t0 = subs[0]?.t || 0;
   download(`muoitu-${stamp()}.srt`, subs.map((s, i) => {
     const start = s.t - t0, end = (subs[i + 1] ? subs[i + 1].t - t0 : start + 4000);
     return `${i + 1}\n${fmt(start)} --> ${fmt(Math.max(end - 100, start + 800))}\n${s.tgt}\n`;
   }).join("\n"));
 };
-$("clearBtn").onclick = () => { if (!confirm("確定要清除所有紀錄嗎？")) return; segments.length = 0; persist(); renderFeed(); closeSheet(); toast("已清除"); };
+$("clearBtn").onclick = () => { if (!confirm(T("確定要清除所有紀錄嗎？", "Clear all history?"))) return; segments.length = 0; persist(); renderFeed(); closeSheet(); toast(T("已清除", "Cleared")); };
 
 // ===================== installable app (PWA) =====================
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -913,6 +1048,9 @@ let installEvt = null;
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; show("installItem", true); });
 $("installBtn").onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; show("installItem", false); };
 
+applyI18n(); updateCamButton(); stopAsk();
+$("capTgt").textContent = T("等待說話…", "Waiting for speech…");
+checkServer();
 route();
 </script>
 </body>

@@ -22,6 +22,7 @@ import html
 import json
 import os
 import secrets
+from datetime import date
 from pathlib import Path
 from typing import Any, Callable, Iterator, Literal
 
@@ -41,12 +42,18 @@ STATIC_DIR = Path(__file__).parent / "static"
 FALLBACK_MODELS = {"claude-fable-5-2", "claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5"}
 REQUIRE_INVITE = os.environ.get("LIVE_TRANSLATE_REQUIRE_INVITE", "1") != "0"
 
+# Messages shown to users are bilingual (Chinese / English).
 INVITE_ERRORS = {
-    "missing": (401, "請先輸入邀請碼才能開始翻譯。"),
-    "invalid": (401, "邀請碼不正確，請確認後重新輸入。"),
-    "disabled": (403, "這個邀請碼已停用，請聯絡提供邀請碼的人。"),
-    "limit": (429, "今天的翻譯次數已用完，明天再來吧！"),
+    "missing": (401, "請先輸入邀請碼才能開始使用。 / Please enter your invite code to start."),
+    "invalid": (401, "邀請碼不正確，請確認後重新輸入。 / That invite code isn't right. Please check it."),
+    "disabled": (403, "這個邀請碼已停用，請聯絡提供邀請碼的人。 / This invite code has been turned off."),
+    "limit": (429, "今天的使用次數已用完，明天再來吧！ / Today's limit is used up. Please try again tomorrow."),
 }
+
+# Live web search for "Ask AI" and the video assistant (billed per search on top of tokens).
+# The basic tool version works on every current model, including Claude Haiku 5.5.
+WEB_SEARCH_ON = os.environ.get("LIVE_TRANSLATE_WEB_SEARCH", "1") != "0"
+WEB_TOOLS = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}]
 
 SYSTEM_PROMPT = """You are a real-time interpreter embedded in a live translation app.
 You receive one spoken or typed segment at a time and return ONLY its translation.
@@ -94,7 +101,27 @@ How to answer:
 - With no question, say what matters in the scene and translate any visible foreign text.
 - Medicine, electricity, gas and similar risks: give the practical answer, add a one-line
   caution when there is real risk, and never guess a dosage you cannot read clearly;
-  tell them to check with a pharmacist or doctor instead."""
+  tell them to check with a pharmacist or doctor instead.
+- If the question needs current information you can't see (price, where to buy, reviews,
+  opening hours, what a product is), use web search. Don't announce the search and
+  don't put URLs in the text; the app lists your sources."""
+
+ASK_PROMPT = """You are the "Ask AI" helper inside Muối Từ, a translation app used by older people
+and their families. Answer the user's question (transcribed from speech, so it may contain
+recognition errors) helpfully and truthfully.
+
+How to answer:
+- Reply in the answer language given in the message.
+- Your reply is read aloud: plain text, no markdown, no URLs, 1-5 short sentences.
+  Use a short numbered sequence only when the user needs steps.
+- Use web search whenever the answer depends on current or changing facts: news, prices,
+  weather, opening hours, schedules, rules and laws, or anything you are not sure about.
+  Don't search for stable knowledge, greetings or simple conversation.
+- Don't announce that you are searching; the app shows that. Give the answer directly.
+  The app lists your sources separately, so don't cite them in the text.
+- If you can't find a reliable answer, say so plainly and suggest who to ask.
+- Health, medicine, money and legal questions: give practical general information and
+  suggest checking with a doctor, pharmacist or professional when it matters."""
 
 app = FastAPI(title="Muối Từ · Phiên Dịch AI")
 _client: anthropic.Anthropic | None = None
@@ -134,6 +161,12 @@ class VisionRequest(BaseModel):
     history: list[VisionTurn] = Field(default_factory=list, max_length=6)
 
 
+class AskRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000)
+    answer_lang: str = "Traditional Chinese"
+    history: list[VisionTurn] = Field(default_factory=list, max_length=6)
+
+
 class ExplainRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=4000)
     translation: str = Field("", max_length=8000)
@@ -159,50 +192,88 @@ def sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def _collect_sources(content: list[Any], cited: dict[str, str], found: dict[str, str]) -> None:
+    """Remember pages Claude cited and pages the search returned (cited ones are shown first)."""
+    for block in content:
+        if block.type == "text":
+            for c in getattr(block, "citations", None) or []:
+                if getattr(c, "url", None):
+                    cited.setdefault(c.url, c.title or c.url)
+        elif block.type == "web_search_tool_result" and isinstance(block.content, list):
+            for r in block.content:
+                if getattr(r, "url", None):
+                    found.setdefault(r.url, r.title or r.url)
+
+
 def stream_claude(
-    system: str, user_message: str | list[dict[str, Any]], on_usage: Callable[[int, int], None] | None = None
+    system: str,
+    user_message: str | list[dict[str, Any]],
+    on_usage: Callable[[int, int, int], None] | None = None,
+    tools: list[dict[str, Any]] | None = None,
 ) -> Iterator[str]:
-    tokens_in = tokens_out = 0
+    tokens_in = tokens_out = searches = 0
+    cited: dict[str, str] = {}
+    found: dict[str, str] = {}
+    messages: list[dict[str, Any]] = [{"role": "user", "content": user_message}]
+    assistant_so_far: list[Any] = []
     try:
-        params = dict(
-            model=MODEL,
-            max_tokens=4000,
-            system=system,
-            output_config={"effort": EFFORT},
-            messages=[{"role": "user", "content": user_message}],
-        )
-        if MODEL in FALLBACK_MODELS:
-            stream_ctx = client().beta.messages.stream(
-                **params, betas=["server-side-fallback-2026-07-01"], fallbacks="default"
+        for _ in range(3):  # a web-search turn can pause; resume it up to twice
+            params: dict[str, Any] = dict(
+                model=MODEL,
+                max_tokens=4000,
+                system=system,
+                output_config={"effort": EFFORT},
+                messages=messages,
             )
-        else:
-            stream_ctx = client().messages.stream(**params)
-        with stream_ctx as stream:
-            for text in stream.text_stream:
-                yield sse("delta", {"text": text})
-            final = stream.get_final_message()
-        tokens_in = final.usage.input_tokens + (final.usage.cache_creation_input_tokens or 0) + (
-            final.usage.cache_read_input_tokens or 0
-        )
-        tokens_out = final.usage.output_tokens
+            if tools:
+                params["tools"] = tools
+            if MODEL in FALLBACK_MODELS:
+                stream_ctx = client().beta.messages.stream(
+                    **params, betas=["server-side-fallback-2026-07-01"], fallbacks="default"
+                )
+            else:
+                stream_ctx = client().messages.stream(**params)
+            with stream_ctx as stream:
+                for event in stream:
+                    if event.type == "text":
+                        yield sse("delta", {"text": event.text})
+                    elif event.type == "content_block_start" and event.content_block.type == "server_tool_use":
+                        yield sse("status", {"kind": "search", "query": ""})
+                    elif event.type == "content_block_stop" and event.content_block.type == "server_tool_use":
+                        query = event.content_block.input.get("query", "") if isinstance(event.content_block.input, dict) else ""
+                        yield sse("status", {"kind": "search", "query": query})
+                final = stream.get_final_message()
+            u = final.usage
+            tokens_in += u.input_tokens + (u.cache_creation_input_tokens or 0) + (u.cache_read_input_tokens or 0)
+            tokens_out += u.output_tokens
+            searches += getattr(getattr(u, "server_tool_use", None), "web_search_requests", 0) or 0
+            _collect_sources(final.content, cited, found)
+            if final.stop_reason != "pause_turn":
+                break
+            # send the paused turn back unchanged; the API resumes where it stopped
+            assistant_so_far = assistant_so_far + list(final.content)
+            messages = [messages[0], {"role": "assistant", "content": assistant_so_far}]
+        sources = cited or found  # what the answer relied on; otherwise what was searched
+        if sources:
+            yield sse("sources", {"items": [{"url": k, "title": v} for k, v in list(sources.items())[:5]]})
         if final.stop_reason == "refusal":
-            yield sse("error", {"message": "The model declined to translate this segment."})
+            yield sse("error", {"message": "AI 無法處理這個內容。 / The AI declined this request."})
         else:
             yield sse("done", {"stop_reason": final.stop_reason})
     except (anthropic.AuthenticationError, TypeError):
         # TypeError: SDK found no credentials at all (no key / token / profile).
-        yield sse("error", {"message": "Invalid or missing ANTHROPIC_API_KEY on the server."})
+        yield sse("error", {"message": "伺服器的 API 金鑰沒設定好。 / The server's API key is missing or invalid."})
     except anthropic.RateLimitError:
-        yield sse("error", {"message": "Rate limited - please slow down and retry."})
+        yield sse("error", {"message": "太多人同時使用，請稍等再試。 / Too many requests, please try again shortly."})
     except anthropic.APIStatusError as e:
-        yield sse("error", {"message": f"API error {e.status_code}: {e.message}"})
+        yield sse("error", {"message": f"AI 服務出錯（{e.status_code}）。 / AI service error ({e.status_code}): {e.message}"})
     except anthropic.APIConnectionError:
-        yield sse("error", {"message": "Network error contacting the translation API."})
+        yield sse("error", {"message": "連不上 AI 服務，請檢查網路。 / Can't reach the AI service."})
     finally:
         # only count requests that actually used API credit, so server-side
         # failures don't eat into a friend's daily limit
         if on_usage and (tokens_in or tokens_out):
-            on_usage(tokens_in, tokens_out)
+            on_usage(tokens_in, tokens_out, searches)
 
 
 def sse_response(events: Iterator[str]) -> StreamingResponse:
@@ -213,7 +284,7 @@ def sse_response(events: Iterator[str]) -> StreamingResponse:
     )
 
 
-def gate(code: str | None) -> tuple[JSONResponse | None, Callable[[int, int], None] | None]:
+def gate(code: str | None) -> tuple[JSONResponse | None, Callable[[int, int, int], None] | None]:
     """Reject requests without a usable invite code; otherwise return a usage recorder."""
     if not REQUIRE_INVITE:
         return None, None
@@ -222,7 +293,7 @@ def gate(code: str | None) -> tuple[JSONResponse | None, Callable[[int, int], No
         status, message = INVITE_ERRORS[res.status]
         return JSONResponse({"error": res.status, "message": message}, status_code=status), None
     assert code is not None
-    return None, lambda i, o: invites.record(code, i, o)
+    return None, lambda i, o, s: invites.record(code, i, o, s)
 
 
 @app.post("/api/translate")
@@ -241,9 +312,9 @@ def vision(req: VisionRequest, x_invite_code: str | None = Header(default=None))
     try:
         raw = base64.b64decode(req.image, validate=True)
     except (binascii.Error, ValueError):
-        return JSONResponse({"error": "bad_image", "message": "畫面資料損壞，請再試一次。"}, status_code=400)
+        return JSONResponse({"error": "bad_image", "message": "畫面資料損壞，請再試一次。 / The picture was damaged, please try again."}, status_code=400)
     if len(raw) > 3_500_000:  # API limit is 5 MB per image; the app sends ~100-300 KB
-        return JSONResponse({"error": "image_too_large", "message": "畫面太大，請再試一次。"}, status_code=413)
+        return JSONResponse({"error": "image_too_large", "message": "畫面太大，請再試一次。 / The picture is too large, please try again."}, status_code=413)
     parts = []
     if req.history:
         turns = "\n".join(f"Q: {t.question}\nA: {t.answer}" for t in req.history[-4:])
@@ -255,7 +326,22 @@ def vision(req: VisionRequest, x_invite_code: str | None = Header(default=None))
         {"type": "image", "source": {"type": "base64", "media_type": req.media_type, "data": req.image}},
         {"type": "text", "text": "\n\n".join(parts)},
     ]
-    return sse_response(stream_claude(VISION_PROMPT, content, on_usage))
+    return sse_response(stream_claude(VISION_PROMPT, content, on_usage, WEB_TOOLS if WEB_SEARCH_ON else None))
+
+
+@app.post("/api/ask")
+def ask(req: AskRequest, x_invite_code: str | None = Header(default=None)):
+    """General question answering with live web search (the "Ask AI" function)."""
+    denied, on_usage = gate(x_invite_code)
+    if denied:
+        return denied
+    parts = []
+    if req.history:
+        turns = "\n".join(f"Q: {t.question}\nA: {t.answer}" for t in req.history[-4:])
+        parts.append(f"<conversation_so_far>\n{turns}\n</conversation_so_far>")
+    parts.append(f"Today's date: {date.today().isoformat()}\nAnswer language: {req.answer_lang}")
+    parts.append(f"<question>\n{req.question.strip()}\n</question>")
+    return sse_response(stream_claude(ASK_PROMPT, "\n\n".join(parts), on_usage, WEB_TOOLS if WEB_SEARCH_ON else None))
 
 
 @app.post("/api/explain")

@@ -38,6 +38,7 @@ _model = os.environ.get("LIVE_TRANSLATE_MODEL", "claude-opus-5-5")
 _default_in, _default_out = MODEL_PRICES.get(_model, MODEL_PRICES["claude-opus-5-5"])
 PRICE_IN = float(os.environ.get("LIVE_TRANSLATE_PRICE_IN", _default_in))
 PRICE_OUT = float(os.environ.get("LIVE_TRANSLATE_PRICE_OUT", _default_out))
+PRICE_SEARCH = float(os.environ.get("LIVE_TRANSLATE_PRICE_SEARCH", "0.01"))  # USD per web search
 
 _lock = threading.Lock()
 
@@ -65,6 +66,10 @@ def _connect() -> sqlite3.Connection:
         );
         """
     )
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(usage)")}
+    if "searches" not in cols:  # databases created before web search existed
+        conn.execute("ALTER TABLE usage ADD COLUMN searches INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
     return conn
 
 
@@ -115,15 +120,16 @@ def check(code: str | None) -> CheckResult:
     return res
 
 
-def record(code: str, input_tokens: int = 0, output_tokens: int = 0, requests: int = 1) -> None:
+def record(code: str, input_tokens: int = 0, output_tokens: int = 0, searches: int = 0, requests: int = 1) -> None:
     with _lock:
         db().execute(
-            """INSERT INTO usage (code, day, requests, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?)
+            """INSERT INTO usage (code, day, requests, input_tokens, output_tokens, searches) VALUES (?, ?, ?, ?, ?, ?)
                ON CONFLICT(code, day) DO UPDATE SET
                  requests = requests + excluded.requests,
                  input_tokens = input_tokens + excluded.input_tokens,
-                 output_tokens = output_tokens + excluded.output_tokens""",
-            (normalize(code), date.today().isoformat(), requests, input_tokens, output_tokens),
+                 output_tokens = output_tokens + excluded.output_tokens,
+                 searches = searches + excluded.searches""",
+            (normalize(code), date.today().isoformat(), requests, input_tokens, output_tokens, searches),
         )
         db().commit()
 
@@ -241,6 +247,7 @@ def report() -> list[dict]:
                       COALESCE(SUM(u.requests), 0) AS total_requests,
                       COALESCE(SUM(u.input_tokens), 0) AS input_tokens,
                       COALESCE(SUM(u.output_tokens), 0) AS output_tokens,
+                      COALESCE(SUM(u.searches), 0) AS searches,
                       COALESCE(SUM(CASE WHEN u.day = ? THEN u.requests END), 0) AS today_requests
                FROM invites i LEFT JOIN usage u ON u.code = i.code
                GROUP BY i.code ORDER BY i.created_at""",
@@ -249,7 +256,7 @@ def report() -> list[dict]:
     out = []
     for r in rows:
         d = dict(r)
-        d["cost_usd"] = (d["input_tokens"] * PRICE_IN + d["output_tokens"] * PRICE_OUT) / 1_000_000
+        d["cost_usd"] = (d["input_tokens"] * PRICE_IN + d["output_tokens"] * PRICE_OUT) / 1_000_000 + d["searches"] * PRICE_SEARCH
         out.append(d)
     return out
 
@@ -289,7 +296,7 @@ def main(argv: list[str] | None = None) -> None:
             st = "啟用" if r["active"] else "停用"
             print(f"{r['code']:<14} {r['name']:<10} {st:<4} {lim_s:<10} {r['total_requests']:>8} {'$' + format(r['cost_usd'], '.3f'):>10}")
         total = sum(r["cost_usd"] for r in rows)
-        print(f"\n全部估計費用：${total:.3f}（{_model}，以每百萬 token 輸入 ${PRICE_IN:g} / 輸出 ${PRICE_OUT:g} 計算）")
+        print(f"\n全部估計費用：${total:.3f}（{_model}，以每百萬 token 輸入 ${PRICE_IN:g} / 輸出 ${PRICE_OUT:g}、每次上網搜尋 ${PRICE_SEARCH:g} 計算）")
     else:
         fn = {
             "disable": lambda: set_active(args.code, False),
