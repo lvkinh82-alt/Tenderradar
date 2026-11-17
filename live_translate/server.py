@@ -300,9 +300,14 @@ def stream_claude(
             yield sse("error", {"message": "AI 無法處理這個內容。 / The AI declined this request."})
         else:
             yield sse("done", {"stop_reason": final.stop_reason})
-    except (anthropic.AuthenticationError, TypeError):
-        # TypeError: SDK found no credentials at all (no key / token / profile).
+    except anthropic.AuthenticationError:
         yield sse("error", {"message": "伺服器的 API 金鑰沒設定好。 / The server's API key is missing or invalid."})
+    except TypeError as e:
+        if "authentication" in str(e).lower():  # the SDK found no credentials at all
+            yield sse("error", {"message": "伺服器的 API 金鑰沒設定好。 / The server's API key is missing or invalid."})
+        else:  # a real bug: say so instead of blaming the key
+            print(f"[muoitu] unexpected error: {e!r}", flush=True)
+            yield sse("error", {"message": f"伺服器出錯：{e} / Server error: {e}"})
     except anthropic.RateLimitError:
         yield sse("error", {"message": "太多人同時使用，請稍等再試。 / Too many requests, please try again shortly."})
     except anthropic.APIStatusError as e:
